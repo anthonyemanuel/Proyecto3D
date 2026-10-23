@@ -4,14 +4,14 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     [Header("Configuración de Movimiento")]
-    public float velocidadCaminar = 5.0f;
+    public float velocidadCaminar = 3.0f;
     public float velocidadCorrer = 8.0f;
     public float gravedad = -9.81f;
     public float fuerzaSalto = 1.5f;
 
     [Header("Sensibilidad de Cámara (1ra Persona)")]
     public Transform camaraTransform;
-    public float sensibilidadMouse = 200.0f;
+    public float sensibilidadMouse = 180.0f;
 
     private CharacterController controller;
     private Vector3 velocidadVertical;
