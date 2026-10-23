@@ -1,69 +1,82 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class PlayerPickup : MonoBehaviour
 {
-    [Header("Configuración de Agarrado")]
-    public Transform holdPoint;       
-    public float distanciaInteraccion = 3.0f; 
+    private List<GameObject> basurasEnRango = new List<GameObject>();
     
-    private GameObject objetoSostenido;
+    [Header("Referencias de Carga")]
+    public GameObject basuraEnMano = null; // La basura que estamos cargando actualmente
+    public Transform puntoMano;           // El objeto PuntoMano que creamos frente al jugador
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.E))
+        // Si presionamos la E y no tenemos nada en las manos, recogemos
+        if (Input.GetKeyDown(KeyCode.E) && basuraEnMano == null)
         {
-            if (objetoSostenido == null)
+            IntentarRecogerBasura();
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Basura"))
+        {
+            if (!basurasEnRango.Contains(other.gameObject) && basuraEnMano != other.gameObject)
             {
-                IntentarAgarrarBasura();
+                basurasEnRango.Add(other.gameObject);
+            }
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Basura"))
+        {
+            if (basurasEnRango.Contains(other.gameObject))
+            {
+                basurasEnRango.Remove(other.gameObject);
+            }
+        }
+    }
+
+    void IntentarRecogerBasura()
+    {
+        basurasEnRango.RemoveAll(item => item == null);
+
+        if (basurasEnRango.Count > 0)
+        {
+            // Tomamos la basura más cercana
+            GameObject basuraAAtrapar = basurasEnRango[0];
+            basurasEnRango.Remove(basuraAAtrapar);
+
+            basuraEnMano = basuraAAtrapar;
+
+            // 1. Desactivamos las físicas para que no salga volando ni choque con nosotros
+            Rigidbody rb = basuraEnMano.GetComponent<Rigidbody>();
+            if (rb != null) rb.isKinematic = true;
+
+            Collider col = basuraEnMano.GetComponent<Collider>();
+            if (col != null) col.enabled = false;
+
+            // 2. Desactivamos temporariamente su script de huida
+            TrashFlee flee = basuraEnMano.GetComponent<TrashFlee>();
+            if (flee != null) flee.enabled = false;
+
+            // 3. La ponemos en la mano del jugador
+            if (puntoMano != null)
+            {
+                basuraEnMano.transform.SetParent(puntoMano);
+                basuraEnMano.transform.localPosition = Vector3.zero;
+                basuraEnMano.transform.localRotation = Quaternion.identity;
             }
             else
             {
-                SoltarBasura();
-            }
-        }
-    }
-
-    void IntentarAgarrarBasura()
-    {
-        RaycastHit hit;
-        Vector3 origenRaycast = Camera.main.transform.position;
-        Vector3 direccionRaycast = Camera.main.transform.forward;
-
-        if (Physics.Raycast(origenRaycast, direccionRaycast, out hit, distanciaInteraccion))
-        {
-            if (hit.collider.CompareTag("Basura"))
-            {
-                objetoSostenido = hit.collider.gameObject;
-
-                Rigidbody rb = objetoSostenido.GetComponent<Rigidbody>();
-                if (rb != null)
-                {
-                    rb.isKinematic = true;
-                }
-
-                objetoSostenido.transform.SetParent(holdPoint);
-                objetoSostenido.transform.localPosition = Vector3.zero;
-                objetoSostenido.transform.localRotation = Quaternion.identity;
-
-                Debug.Log("¡Basura recogida!");
-            }
-        }
-    }
-
-    void SoltarBasura()
-    {
-        if (objetoSostenido != null)
-        {
-            Rigidbody rb = objetoSostenido.GetComponent<Rigidbody>();
-            if (rb != null)
-            {
-                rb.isKinematic = false;
+                basuraEnMano.transform.SetParent(transform);
+                basuraEnMano.transform.localPosition = new Vector3(0, 0.5f, 1.2f);
             }
 
-            objetoSostenido.transform.SetParent(null);
-            objetoSostenido = null;
-
-            Debug.Log("Basura soltada.");
+            Debug.Log("¡Has levantado la basura! Llévala a su tacho.");
         }
     }
 }

@@ -7,31 +7,39 @@ public class BinController : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        // Verificamos si lo que entró tiene la etiqueta de basura
-        if (other.CompareTag("Basura"))
+        // Verificamos si el que entró al tacho es el Jugador
+        if (other.CompareTag("Player"))
         {
-            // Intentamos obtener el componente TrashItem para saber qué tipo de basura es
-            TrashItem itemBasura = other.GetComponent<TrashItem>();
+            PlayerPickup pickup = other.GetComponent<PlayerPickup>();
 
-            if (itemBasura != null)
+            // Verificamos si el jugador efectivamente trae basura en la mano
+            if (pickup != null && pickup.basuraEnMano != null)
             {
-                // Comparamos si el tipo de la basura coincide con el tipo del tacho
-                if (itemBasura.tipoResiduo.ToString() == tipoAceptado.ToString())
-                {
-                    Debug.Log("¡Correcto! Reciclaste " + itemBasura.tipoResiduo + " en el tacho " + tipoAceptado);
-                    
-                    // Sumamos puntos a través del GameManager
-                    if (GameManager.Instance != null)
-                    {
-                        GameManager.Instance.SumarPuntos(10); // Cada residuo correcto otorga 10 puntos
-                    }
+                TrashItem itemBasura = pickup.basuraEnMano.GetComponent<TrashItem>();
 
-                    // Destruimos la basura porque fue depositada en el lugar correcto
-                    Destroy(other.gameObject);
-                }
-                else
+                if (itemBasura != null)
                 {
-                    Debug.Log("¡Error! Este tacho es para " + tipoAceptado + ", no puedes meter " + itemBasura.tipoResiduo);
+                    // Comparamos si el tipo de la basura coincide con el tacho
+                    if (itemBasura.tipoResiduo.ToString() == tipoAceptado.ToString())
+                    {
+                        Debug.Log("¡Correcto! Entregaste " + itemBasura.tipoResiduo + " en el tacho " + tipoAceptado);
+                        
+                        // Sumamos los puntos
+                        if (GameManager.Instance != null)
+                        {
+                            GameManager.Instance.SumarPuntos(10);
+                        }
+
+                        // Destruimos la basura que llevábamos en la mano
+                        Destroy(pickup.basuraEnMano);
+                        
+                        // Limpiamos la mano del jugador
+                        pickup.basuraEnMano = null;
+                    }
+                    else
+                    {
+                        Debug.Log("¡Error! Este tacho es para " + tipoAceptado + ", no para " + itemBasura.tipoResiduo);
+                    }
                 }
             }
         }

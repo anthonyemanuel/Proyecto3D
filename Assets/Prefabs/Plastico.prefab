@@ -116,7 +116,7 @@ CapsuleCollider:
   m_Radius: 0.5000001
   m_Height: 2
   m_Direction: 1
-  m_Center: {x: 0.000000059604645, y: 0, z: -0.00000008940697}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!54 &4623039660345987705
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -157,7 +157,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TrashFlee
   distanciaDeteccion: 4
-  velocidadHuida: 3.5
+  velocidadHuida: 3
 --- !u!114 &2495951155156351610
 MonoBehaviour:
   m_ObjectHideFlags: 0
