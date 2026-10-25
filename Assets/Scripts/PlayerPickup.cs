@@ -9,12 +9,21 @@ public class PlayerPickup : MonoBehaviour
     public GameObject basuraEnMano = null; // La basura que estamos cargando actualmente
     public Transform puntoMano;           // El objeto PuntoMano que creamos frente al jugador
 
+    [Header("Sonidos")]
+    public AudioClip sonidoRecoger;
+
     void Update()
     {
-        // Si presionamos la E y no tenemos nada en las manos, recogemos
-        if (Input.GetKeyDown(KeyCode.E) && basuraEnMano == null)
+        if (Input.GetKeyDown(KeyCode.E))
         {
-            IntentarRecogerBasura();
+            if (basuraEnMano == null)
+            {
+                IntentarRecogerBasura();
+            }
+            else
+            {
+                SoltarBasura();
+            }
         }
     }
 
@@ -76,7 +85,34 @@ public class PlayerPickup : MonoBehaviour
                 basuraEnMano.transform.localPosition = new Vector3(0, 0.5f, 1.2f);
             }
 
+            // 4. Sonido al recoger
+            if (sonidoRecoger != null) AudioSource.PlayClipAtPoint(sonidoRecoger, transform.position);
+
             Debug.Log("¡Has levantado la basura! Llévala a su tacho.");
         }
+    }
+
+    void SoltarBasura()
+    {
+        // 1. La sacamos de la mano
+        basuraEnMano.transform.SetParent(null);
+
+        // 2. La ponemos un poco delante del jugador
+        basuraEnMano.transform.position = transform.position + transform.forward * 0.5f;
+
+        // 3. Le devolvemos sus físicas, su collider y su script de huida
+        Rigidbody rb = basuraEnMano.GetComponent<Rigidbody>();
+        if (rb != null) rb.isKinematic = false;
+
+        Collider col = basuraEnMano.GetComponent<Collider>();
+        if (col != null) col.enabled = true;
+
+        TrashFlee flee = basuraEnMano.GetComponent<TrashFlee>();
+        if (flee != null) flee.enabled = true;
+
+        // 4. La mano queda libre
+        basuraEnMano = null;
+
+        Debug.Log("Soltaste la basura.");
     }
 }
