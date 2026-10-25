@@ -5,6 +5,9 @@ public class BinController : MonoBehaviour
     public enum TipoTacho { Papel, Plastico, Organico }
     public TipoTacho tipoAceptado;
 
+    [Header("Sonidos")]
+    public AudioClip sonidoDepositar;
+
     private void OnTriggerEnter(Collider other)
     {
         // Verificamos si el que entró al tacho es el Jugador
@@ -23,7 +26,13 @@ public class BinController : MonoBehaviour
                     if (itemBasura.tipoResiduo.ToString() == tipoAceptado.ToString())
                     {
                         Debug.Log("¡Correcto! Entregaste " + itemBasura.tipoResiduo + " en el tacho " + tipoAceptado);
-                        
+
+                        // Sonido al depositar
+                        if (sonidoDepositar != null)
+                        {
+                            AudioSource.PlayClipAtPoint(sonidoDepositar, transform.position);
+                        }
+
                         // Sumamos los puntos
                         if (GameManager.Instance != null)
                         {
@@ -32,7 +41,7 @@ public class BinController : MonoBehaviour
 
                         // Destruimos la basura que llevábamos en la mano
                         Destroy(pickup.basuraEnMano);
-                        
+
                         // Limpiamos la mano del jugador
                         pickup.basuraEnMano = null;
                     }
