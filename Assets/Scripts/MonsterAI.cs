@@ -15,9 +15,12 @@ public class MonsterAI : MonoBehaviour
     [Header("Puntos de Patrulla / Punto de Ruido")]
     public Vector3 puntoRuido;
     public float radioPatrulla = 8.0f;
+    public float tiempoInvestigando = 3.0f;   // Segundos que investiga el último ruido
 
     private NavMeshAgent agente;
     private bool persiguiendo = false;
+    private bool investigando = false;
+    private float tiempoFinInvestigacion = 0f;
     private float tiempoSiguientePunto = 0f;
     private float proximaActualizacionDestino = 0f;
 
@@ -51,6 +54,7 @@ public class MonsterAI : MonoBehaviour
             if (!persiguiendo)
             {
                 persiguiendo = true;
+                investigando = false;
                 agente.speed = velocidadCorriendo;
             }
 
@@ -63,17 +67,44 @@ public class MonsterAI : MonoBehaviour
                 agente.SetDestination(PuntoValido(puntoRuido));
             }
         }
-        // ESTADO 2: El jugador está a salvo (el monstruo patrulla lento)
+        // ESTADO 2: El jugador está a salvo
         else
         {
             if (persiguiendo)
             {
+                // Dejó de oír ruido: va al último punto donde lo oyó a investigar
                 persiguiendo = false;
+                investigando = true;
                 agente.speed = velocidadTranquilo;
-                GenerarNuevoPuntoPatrulla();
+                tiempoFinInvestigacion = 0f;
+                agente.SetDestination(PuntoValido(puntoRuido));
             }
 
-            PatrullarLentamente();
+            if (investigando)
+            {
+                Investigar();
+            }
+            else
+            {
+                PatrullarLentamente();
+            }
+        }
+    }
+
+    // El monstruo llega al último ruido, espera unos segundos y luego vuelve a patrullar
+    void Investigar()
+    {
+        bool llego = !agente.pathPending && agente.remainingDistance <= 0.5f;
+
+        if (llego && tiempoFinInvestigacion == 0f)
+        {
+            tiempoFinInvestigacion = Time.time + tiempoInvestigando;
+        }
+
+        if (tiempoFinInvestigacion > 0f && Time.time >= tiempoFinInvestigacion)
+        {
+            investigando = false;
+            GenerarNuevoPuntoPatrulla();
         }
     }
 
