@@ -23,6 +23,7 @@ public class MonsterAI : MonoBehaviour
     private float tiempoFinInvestigacion = 0f;
     private float tiempoSiguientePunto = 0f;
     private float proximaActualizacionDestino = 0f;
+    private float tiempoSiguienteSalpicadura = 0f;
 
     void Start()
     {
@@ -88,6 +89,14 @@ public class MonsterAI : MonoBehaviour
             {
                 PatrullarLentamente();
             }
+        }
+
+        // Si el monstruo se está moviendo por el agua, genera ondas y salpicaduras
+        if (agente.velocity.sqrMagnitude > 0.1f && Time.time >= tiempoSiguienteSalpicadura)
+        {
+            float intervalo = persiguiendo ? 0.18f : 0.42f;
+            tiempoSiguienteSalpicadura = Time.time + intervalo;
+            detectorAgua.EmitirSalpicaduraExterna(transform.position, persiguiendo);
         }
     }
 
