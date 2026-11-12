@@ -92,8 +92,10 @@ public class PlayerPickup : MonoBehaviour
         }
     }
 
-    void SoltarBasura()
+    public void SoltarBasura()
     {
+        if (basuraEnMano == null) return;
+
         // 1. La sacamos de la mano
         basuraEnMano.transform.SetParent(null);
 
