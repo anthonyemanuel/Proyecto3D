@@ -20,10 +20,18 @@ public class DetectorAgua : MonoBehaviour
     public float densidadNieblaBase = 0.068f;
     [Tooltip("Densidad de la niebla cuando pisas el agua y hay peligro")]
     public float densidadNieblaPeligro = 0.092f;
-    [Tooltip("Color ambiental de la niebla en estado normal")]
-    public Color colorNieblaNormal = new Color(0.46f, 0.56f, 0.64f, 1f);
+    [Tooltip("Color ambiental de la niebla en noche de tormenta")]
+    public Color colorNieblaNormal = new Color(0.11f, 0.16f, 0.25f, 1f);
     [Tooltip("Color ambiental de la niebla cuando pisas el agua")]
-    public Color colorNieblaPeligro = new Color(0.35f, 0.44f, 0.54f, 1f);
+    public Color colorNieblaPeligro = new Color(0.07f, 0.10f, 0.18f, 1f);
+
+    [Header("Noche de Tormenta, Lluvia y Relámpagos")]
+    public Color colorLuzLuna = new Color(0.42f, 0.56f, 0.78f, 1f);
+    public Color colorRelampago = new Color(0.82f, 0.92f, 1.0f, 1f);
+    public float intensidadLuzLuna = 0.52f;
+    public float intensidadMaxRelampago = 5.8f;
+    public float tiempoMinRelampago = 7.0f;
+    public float tiempoMaxRelampago = 14.0f;
 
     private float alturaSuperficieAgua = 0.85f;
     private Vector3 ultimaPosicionXZ;
@@ -35,9 +43,22 @@ public class DetectorAgua : MonoBehaviour
     private ParticleSystem sistemaOndas;
     private ParticleSystem sistemaMotasNiebla;
     private ParticleSystem sistemaBrumaBaja;
+    private ParticleSystem sistemaLluvia;
     private Material materialGotas;
     private Material materialOndas;
     private Material materialBruma;
+
+    // Estado de la Tormenta y Relámpagos
+    private Light luzDireccional;
+    private Camera camaraPrincipal;
+    private LineRenderer rayoPrincipal;
+    private LineRenderer rayoRama;
+    private AudioSource fuenteTrueno;
+    private AudioClip clipTrueno;
+    private float tiempoSiguienteRelampago = 0f;
+    private float tiempoInicioRelampago = -10f;
+    private float duracionRelampagoActual = 0.45f;
+    private float tiempoSiguienteGotaLluviaOnda = 0f;
 
     void Start()
     {
@@ -56,11 +77,13 @@ public class DetectorAgua : MonoBehaviour
         ultimaPosicionXZ = new Vector3(transform.position.x, 0f, transform.position.z);
         CrearSistemasDeParticulas();
         CrearSistemasNieblaFlotante();
+        InicializarTormentaNocturna();
     }
 
     void Update()
     {
         ActualizarAtmosferaNiebla();
+        ActualizarTormentaYRelampagos();
 
         Vector3 posActualXZ = new Vector3(transform.position.x, 0f, transform.position.z);
         float distanciaXZ = Vector3.Distance(posActualXZ, ultimaPosicionXZ);
@@ -132,9 +155,10 @@ public class DetectorAgua : MonoBehaviour
                 estaEnAgua = true;
                 Debug.Log("¡CUIDADO! Has pisado el agua. El monstruo escuchó el ruido.");
 
-                // Salpicadura fuerte al caer o entrar al agua
+                // Salpicadura fuerte al caer o entrar al agua y relámpago dramático
                 EmitirSalpicadura(puntoContacto, 30, 2.9f, 1.25f);
                 EmitirOnda(puntoContacto, 0.85f, 1.3f);
+                DispararRelampago();
                 tiempoSiguienteSalpicadura = Time.time + 0.2f;
             }
             else if (Time.time - ultimoTiempoEnAire < 0.15f)
@@ -470,6 +494,294 @@ public class DetectorAgua : MonoBehaviour
 
         sistemaBrumaBaja.Simulate(6.0f, true, true);
         sistemaBrumaBaja.Play();
+    }
+
+    // Configura la iluminación nocturna de tormenta, la lluvia 3D, los rayos en el cielo y el trueno
+    private void InicializarTormentaNocturna()
+    {
+        camaraPrincipal = Camera.main;
+        if (camaraPrincipal != null)
+        {
+            camaraPrincipal.clearFlags = CameraClearFlags.SolidColor;
+            camaraPrincipal.backgroundColor = colorNieblaNormal;
+        }
+
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+        RenderSettings.ambientLight = new Color(0.16f, 0.22f, 0.34f, 1f);
+
+        Light[] luces = FindObjectsByType<Light>(FindObjectsSortMode.None);
+        foreach (Light l in luces)
+        {
+            if (l.type == LightType.Directional)
+            {
+                luzDireccional = l;
+                luzDireccional.color = colorLuzLuna;
+                luzDireccional.intensity = intensidadLuzLuna;
+                break;
+            }
+        }
+
+        GameObject contenedorTormenta = new GameObject("EfectosTormenta_Nocturna");
+
+        Shader shaderParticulas = Shader.Find("Sprites/Default");
+        if (shaderParticulas == null)
+        {
+            shaderParticulas = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        }
+
+        // 1. Cortina de Lluvia 3D alrededor del jugador
+        GameObject objLluvia = new GameObject("ParticulasLluviaTormenta");
+        objLluvia.transform.SetParent(contenedorTormenta.transform);
+        objLluvia.transform.position = transform.position + Vector3.up * 8f;
+        sistemaLluvia = objLluvia.AddComponent<ParticleSystem>();
+        sistemaLluvia.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        var mainLluvia = sistemaLluvia.main;
+        mainLluvia.playOnAwake = false;
+        mainLluvia.loop = true;
+        mainLluvia.simulationSpace = ParticleSystemSimulationSpace.World;
+        mainLluvia.scalingMode = ParticleSystemScalingMode.Local;
+        mainLluvia.startLifetime = new ParticleSystem.MinMaxCurve(0.55f, 0.85f);
+        mainLluvia.startSpeed = new ParticleSystem.MinMaxCurve(14f, 18f);
+        mainLluvia.startSize = new ParticleSystem.MinMaxCurve(0.025f, 0.045f);
+        mainLluvia.gravityModifier = 0.5f;
+        mainLluvia.startColor = new Color(0.72f, 0.86f, 1.0f, 0.42f);
+        mainLluvia.maxParticles = 600;
+
+        var emisionLluvia = sistemaLluvia.emission;
+        emisionLluvia.enabled = true;
+        emisionLluvia.rateOverTime = 260f;
+
+        var formaLluvia = sistemaLluvia.shape;
+        formaLluvia.enabled = true;
+        formaLluvia.shapeType = ParticleSystemShapeType.Box;
+        formaLluvia.scale = new Vector3(24f, 0.5f, 24f);
+
+        var velLluvia = sistemaLluvia.velocityOverLifetime;
+        velLluvia.enabled = true;
+        velLluvia.space = ParticleSystemSimulationSpace.World;
+        velLluvia.x = new ParticleSystem.MinMaxCurve(-2.0f, -1.2f);
+        velLluvia.y = new ParticleSystem.MinMaxCurve(-16.0f, -13.0f);
+        velLluvia.z = new ParticleSystem.MinMaxCurve(-1.0f, -0.4f);
+
+        var renderLluvia = objLluvia.GetComponent<ParticleSystemRenderer>();
+        renderLluvia.renderMode = ParticleSystemRenderMode.Stretch;
+        renderLluvia.lengthScale = 5.8f;
+        renderLluvia.velocityScale = 0.06f;
+        renderLluvia.material = materialGotas;
+
+        sistemaLluvia.Simulate(1.5f, true, true);
+        sistemaLluvia.Play();
+
+        // 2. Rayo Eléctrico Ramificado en el Cielo (LineRenderer)
+        Material matRayo = new Material(shaderParticulas);
+
+        GameObject objRayo = new GameObject("RayoCieloPrincipal");
+        objRayo.transform.SetParent(contenedorTormenta.transform);
+        rayoPrincipal = objRayo.AddComponent<LineRenderer>();
+        rayoPrincipal.material = matRayo;
+        rayoPrincipal.positionCount = 14;
+        rayoPrincipal.startWidth = 0.42f;
+        rayoPrincipal.endWidth = 0.08f;
+        rayoPrincipal.useWorldSpace = true;
+        rayoPrincipal.enabled = false;
+
+        GameObject objRama = new GameObject("RayoCieloRama");
+        objRama.transform.SetParent(contenedorTormenta.transform);
+        rayoRama = objRama.AddComponent<LineRenderer>();
+        rayoRama.material = matRayo;
+        rayoRama.positionCount = 7;
+        rayoRama.startWidth = 0.22f;
+        rayoRama.endWidth = 0.03f;
+        rayoRama.useWorldSpace = true;
+        rayoRama.enabled = false;
+
+        // 3. Fuente de Audio y Trueno Sintetizado
+        GameObject objTrueno = new GameObject("AudioTruenoTormenta");
+        objTrueno.transform.SetParent(contenedorTormenta.transform);
+        fuenteTrueno = objTrueno.AddComponent<AudioSource>();
+        fuenteTrueno.playOnAwake = false;
+        fuenteTrueno.spatialBlend = 0f;
+        fuenteTrueno.volume = 0.65f;
+        clipTrueno = CrearClipTrueno();
+
+        // Primer relámpago a los pocos segundos de iniciar para lucir el efecto
+        tiempoSiguienteRelampago = Time.time + 3.0f;
+    }
+
+    private void ActualizarTormentaYRelampagos()
+    {
+        if (sistemaLluvia != null)
+        {
+            sistemaLluvia.transform.position = new Vector3(transform.position.x + 1.0f, alturaSuperficieAgua + 8.5f, transform.position.z + 0.5f);
+        }
+
+        // Pequeñas ondas de gotas de lluvia cayendo al azar sobre el agua alrededor del jugador
+        if (Time.time >= tiempoSiguienteGotaLluviaOnda)
+        {
+            tiempoSiguienteGotaLluviaOnda = Time.time + 0.09f;
+            Vector2 offset = Random.insideUnitCircle * 9.5f;
+            Vector3 puntoGota = new Vector3(transform.position.x + offset.x, alturaSuperficieAgua, transform.position.z + offset.y);
+            EmitirOnda(puntoGota, Random.Range(0.16f, 0.30f), Random.Range(0.45f, 0.70f));
+        }
+
+        // Disparar relámpagos periódicos
+        if (Time.time >= tiempoSiguienteRelampago)
+        {
+            DispararRelampago();
+            float minT = estaEnAgua ? tiempoMinRelampago * 0.6f : tiempoMinRelampago;
+            float maxT = estaEnAgua ? tiempoMaxRelampago * 0.65f : tiempoMaxRelampago;
+            tiempoSiguienteRelampago = Time.time + Random.Range(minT, maxT);
+        }
+
+        // Animar el destello del relámpago (doble parpadeo realista y desvanecimiento)
+        float t = Time.time - tiempoInicioRelampago;
+        float factorRelampago = 0f;
+
+        if (t >= 0f && t <= duracionRelampagoActual)
+        {
+            // Doble pulso eléctrico: pico inicial, breve caída y segundo destello fuerte
+            if (t < 0.07f)
+                factorRelampago = 1.0f;
+            else if (t < 0.12f)
+                factorRelampago = 0.25f;
+            else if (t < 0.20f)
+                factorRelampago = 0.95f;
+            else
+                factorRelampago = Mathf.Clamp01(1f - ((t - 0.20f) / (duracionRelampagoActual - 0.20f)));
+
+            if (rayoPrincipal != null)
+            {
+                Color cRayo = new Color(0.85f, 0.95f, 1f, factorRelampago);
+                rayoPrincipal.startColor = cRayo;
+                rayoPrincipal.endColor = cRayo;
+            }
+            if (rayoRama != null)
+            {
+                Color cRama = new Color(0.75f, 0.90f, 1f, factorRelampago * 0.85f);
+                rayoRama.startColor = cRama;
+                rayoRama.endColor = cRama;
+            }
+        }
+        else
+        {
+            if (rayoPrincipal != null && rayoPrincipal.enabled) rayoPrincipal.enabled = false;
+            if (rayoRama != null && rayoRama.enabled) rayoRama.enabled = false;
+        }
+
+        // Aplicar iluminación del relámpago al sol/luna, ambiente, niebla y cielo
+        if (luzDireccional != null)
+        {
+            luzDireccional.intensity = Mathf.Lerp(intensidadLuzLuna, intensidadMaxRelampago, factorRelampago);
+            luzDireccional.color = Color.Lerp(colorLuzLuna, colorRelampago, factorRelampago);
+        }
+
+        Color ambBase = new Color(0.15f, 0.21f, 0.32f, 1f);
+        RenderSettings.ambientLight = Color.Lerp(ambBase, colorRelampago * 0.75f, factorRelampago);
+
+        if (factorRelampago > 0.01f)
+        {
+            RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor, colorRelampago * 0.65f, factorRelampago * 0.8f);
+        }
+
+        if (camaraPrincipal != null)
+        {
+            camaraPrincipal.backgroundColor = RenderSettings.fogColor;
+        }
+    }
+
+    // Dispara un relámpago visual en el cielo frente al jugador con sonido de trueno
+    public void DispararRelampago()
+    {
+        tiempoInicioRelampago = Time.time;
+        duracionRelampagoActual = Random.Range(0.42f, 0.62f);
+
+        // Posicionar el rayo en el cielo dentro del campo de visión o alrededores
+        Vector3 dirVista = camaraPrincipal != null ? camaraPrincipal.transform.forward : transform.forward;
+        dirVista.y = 0f;
+        if (dirVista.sqrMagnitude < 0.01f) dirVista = Vector3.forward;
+        dirVista.Normalize();
+
+        Vector3 derecha = Vector3.Cross(Vector3.up, dirVista);
+        Vector3 baseCielo = transform.position + dirVista * Random.Range(22f, 34f) + derecha * Random.Range(-12f, 12f);
+        Vector3 inicioAlto = new Vector3(baseCielo.x, alturaSuperficieAgua + 26f, baseCielo.z);
+        Vector3 finBajo = new Vector3(baseCielo.x + Random.Range(-3f, 3f), alturaSuperficieAgua + 2f, baseCielo.z + Random.Range(-3f, 3f));
+
+        if (rayoPrincipal != null)
+        {
+            int n = rayoPrincipal.positionCount;
+            Vector3 nodoRama = inicioAlto;
+            for (int i = 0; i < n; i++)
+            {
+                float f = (float)i / (n - 1);
+                Vector3 p = Vector3.Lerp(inicioAlto, finBajo, f);
+                if (i > 0 && i < n - 1)
+                {
+                    p += new Vector3(Random.Range(-1.4f, 1.4f), Random.Range(-0.4f, 0.4f), Random.Range(-1.4f, 1.4f));
+                }
+                rayoPrincipal.SetPosition(i, p);
+                if (i == 5) nodoRama = p;
+            }
+            rayoPrincipal.enabled = true;
+
+            if (rayoRama != null)
+            {
+                int m = rayoRama.positionCount;
+                Vector3 finRama = nodoRama + derecha * Random.Range(4f, 7f) * (Random.value > 0.5f ? 1f : -1f) + Vector3.down * 8f;
+                for (int j = 0; j < m; j++)
+                {
+                    float fj = (float)j / (m - 1);
+                    Vector3 pr = Vector3.Lerp(nodoRama, finRama, fj);
+                    if (j > 0)
+                    {
+                        pr += new Vector3(Random.Range(-0.8f, 0.8f), Random.Range(-0.3f, 0.3f), Random.Range(-0.8f, 0.8f));
+                    }
+                    rayoRama.SetPosition(j, pr);
+                }
+                rayoRama.enabled = true;
+            }
+        }
+
+        if (fuenteTrueno != null && clipTrueno != null)
+        {
+            fuenteTrueno.pitch = Random.Range(0.82f, 1.12f);
+            fuenteTrueno.PlayOneShot(clipTrueno, Random.Range(0.55f, 0.80f));
+        }
+    }
+
+    // Sintetiza un sonido de trueno grave y envolvente en memoria
+    private AudioClip CrearClipTrueno()
+    {
+        int frec = 22050;
+        float duracion = 2.8f;
+        int muestras = Mathf.FloorToInt(frec * duracion);
+        float[] datos = new float[muestras];
+
+        float filtro1 = 0f;
+        float filtro2 = 0f;
+        System.Random rng = new System.Random(42);
+
+        for (int i = 0; i < muestras; i++)
+        {
+            float t = (float)i / frec;
+            float ruido = (float)(rng.NextDouble() * 2.0 - 1.0);
+
+            // Filtro paso-bajo doble para obtener el retumbo profundo de un trueno real
+            filtro1 += 0.045f * (ruido - filtro1);
+            filtro2 += 0.025f * (filtro1 - filtro2);
+
+            // Envolvente con estallido inicial y dos ecos de retumbo
+            float env1 = Mathf.Exp(-t * 2.2f);
+            float env2 = 0.65f * Mathf.Exp(-Mathf.Pow((t - 0.55f) / 0.35f, 2f));
+            float env3 = 0.40f * Mathf.Exp(-Mathf.Pow((t - 1.25f) / 0.55f, 2f));
+            float envolvente = Mathf.Clamp01(env1 + env2 + env3);
+
+            datos[i] = Mathf.Clamp(filtro2 * envolvente * 3.8f, -1f, 1f);
+        }
+
+        AudioClip clip = AudioClip.Create("TruenoSintetizado", muestras, 1, frec, false);
+        clip.SetData(datos, 0);
+        return clip;
     }
 
     // Genera una textura suave circular en memoria para las gotas y motas
