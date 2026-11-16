@@ -25,6 +25,13 @@ public class MonsterAI : MonoBehaviour
     public float tiempoInmunidadRespawn = 2.5f;
     public float intensidadSacudidaCamara = 0.18f;
 
+    [Header("Aura Visual de Pesadilla")]
+    public Color colorAuraPatrulla = new Color(0.18f, 0.78f, 1.0f, 1f);
+    public Color colorAuraInvestigando = new Color(1.0f, 0.58f, 0.10f, 1f);
+    public Color colorAuraPersecucion = new Color(1.0f, 0.08f, 0.12f, 1f);
+    public float intensidadLuzPatrulla = 2.6f;
+    public float intensidadLuzPersecucion = 7.5f;
+
     private NavMeshAgent agente;
     private bool persiguiendo = false;
     private bool investigando = false;
@@ -55,6 +62,15 @@ public class MonsterAI : MonoBehaviour
     private Texture2D texVinetaRoja;
     private Texture2D texFondoHUD;
     private Texture2D texBordeHUD;
+
+    // Componentes del Aura de Pesadilla 3D
+    private Light luzAura;
+    private ParticleSystem sistemaHumo;
+    private ParticleSystem sistemaBrasas;
+    private ParticleSystem sistemaPulsoAura;
+    private Renderer rendererMonstruo;
+    private Color colorBaseOriginalMonstruo = Color.white;
+    private float tiempoSiguientePulsoAura = 0f;
 
     void Start()
     {
@@ -101,6 +117,7 @@ public class MonsterAI : MonoBehaviour
         }
 
         CrearTexturasEfectos();
+        CrearAuraPesadilla();
         GenerarNuevoPuntoPatrulla();
     }
 
@@ -129,6 +146,7 @@ public class MonsterAI : MonoBehaviour
         // Si está en plena secuencia de susto/atrapado, esperar a que termine para hacer respawn
         if (enSecuenciaAtrapar)
         {
+            ActualizarAuraPesadilla();
             Vector3 dirMirar = jugador.position - transform.position;
             dirMirar.y = 0f;
             if (dirMirar.sqrMagnitude > 0.01f)
@@ -202,6 +220,8 @@ public class MonsterAI : MonoBehaviour
             tiempoSiguienteSalpicadura = Time.time + intervalo;
             detectorAgua.EmitirSalpicaduraExterna(transform.position, persiguiendo);
         }
+
+        ActualizarAuraPesadilla();
     }
 
     void LateUpdate()
@@ -564,5 +584,416 @@ public class MonsterAI : MonoBehaviour
             }
         }
         texVinetaRoja.Apply();
+    }
+
+    // Construye el Aura de Pesadilla 3D del monstruo: Luz dinámica, humo sombrío, brasas flotantes y pulsos de energía
+    private void CrearAuraPesadilla()
+    {
+        rendererMonstruo = GetComponentInChildren<Renderer>();
+        if (rendererMonstruo != null && rendererMonstruo.material != null)
+        {
+            if (rendererMonstruo.material.HasProperty("_BaseColor"))
+                colorBaseOriginalMonstruo = rendererMonstruo.material.GetColor("_BaseColor");
+            else if (rendererMonstruo.material.HasProperty("_Color"))
+                colorBaseOriginalMonstruo = rendererMonstruo.material.color;
+
+            rendererMonstruo.material.EnableKeyword("_EMISSION");
+        }
+
+        GameObject contenedorAura = new GameObject("AuraPesadilla_Monstruo");
+        contenedorAura.transform.SetParent(transform, false);
+        contenedorAura.transform.localPosition = Vector3.zero;
+
+        // 1. Luz 3D Dinámica que tiñe la niebla y el agua alrededor del monstruo
+        GameObject objLuz = new GameObject("LuzAuraMonstruo");
+        objLuz.transform.SetParent(contenedorAura.transform, false);
+        objLuz.transform.localPosition = new Vector3(0f, 0.75f, 0f);
+        luzAura = objLuz.AddComponent<Light>();
+        luzAura.type = LightType.Point;
+        luzAura.range = 10.5f;
+        luzAura.intensity = intensidadLuzPatrulla;
+        luzAura.color = colorAuraPatrulla;
+        luzAura.shadows = LightShadows.Soft;
+
+        Shader shaderParticulas = Shader.Find("Sprites/Default");
+        if (shaderParticulas == null)
+        {
+            shaderParticulas = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        }
+
+        // 2. Sistema de Miasma / Humo Oscuro que se desprende del cuerpo del monstruo
+        GameObject objHumo = new GameObject("ParticulasHumoOscuro");
+        objHumo.transform.SetParent(contenedorAura.transform, false);
+        objHumo.transform.localPosition = new Vector3(0f, 0.1f, 0f);
+        sistemaHumo = objHumo.AddComponent<ParticleSystem>();
+        sistemaHumo.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        var mainHumo = sistemaHumo.main;
+        mainHumo.playOnAwake = false;
+        mainHumo.loop = true;
+        mainHumo.simulationSpace = ParticleSystemSimulationSpace.World;
+        mainHumo.scalingMode = ParticleSystemScalingMode.Local;
+        mainHumo.startLifetime = new ParticleSystem.MinMaxCurve(1.4f, 2.4f);
+        mainHumo.startSpeed = new ParticleSystem.MinMaxCurve(0.25f, 0.7f);
+        mainHumo.startSize = new ParticleSystem.MinMaxCurve(0.65f, 1.35f);
+        mainHumo.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        mainHumo.gravityModifier = -0.15f; // Sube como humo denso
+        mainHumo.startColor = new Color(0.05f, 0.08f, 0.14f, 0.55f);
+        mainHumo.maxParticles = 200;
+
+        var emisionHumo = sistemaHumo.emission;
+        emisionHumo.enabled = true;
+        emisionHumo.rateOverTime = 16f;
+
+        var formaHumo = sistemaHumo.shape;
+        formaHumo.enabled = true;
+        formaHumo.shapeType = ParticleSystemShapeType.Sphere;
+        formaHumo.radius = 0.45f;
+
+        var ruidoHumo = sistemaHumo.noise;
+        ruidoHumo.enabled = true;
+        ruidoHumo.strength = 0.35f;
+        ruidoHumo.frequency = 0.5f;
+        ruidoHumo.scrollSpeed = 0.3f;
+        ruidoHumo.damping = true;
+
+        var tamHumo = sistemaHumo.sizeOverLifetime;
+        tamHumo.enabled = true;
+        AnimationCurve curvaTamHumo = new AnimationCurve();
+        curvaTamHumo.AddKey(0.0f, 0.4f);
+        curvaTamHumo.AddKey(0.5f, 1.0f);
+        curvaTamHumo.AddKey(1.0f, 1.45f);
+        tamHumo.size = new ParticleSystem.MinMaxCurve(1f, curvaTamHumo);
+
+        var colorHumo = sistemaHumo.colorOverLifetime;
+        colorHumo.enabled = true;
+        Gradient gradHumo = new Gradient();
+        gradHumo.SetKeys(
+            new GradientColorKey[] {
+                new GradientColorKey(Color.white, 0f),
+                new GradientColorKey(Color.white, 1f)
+            },
+            new GradientAlphaKey[] {
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(0.75f, 0.25f),
+                new GradientAlphaKey(0.45f, 0.65f),
+                new GradientAlphaKey(0f, 1f)
+            }
+        );
+        colorHumo.color = gradHumo;
+
+        var renderHumo = objHumo.GetComponent<ParticleSystemRenderer>();
+        renderHumo.renderMode = ParticleSystemRenderMode.Billboard;
+        Material matHumo = new Material(shaderParticulas);
+        matHumo.mainTexture = CrearTexturaHumoSuave();
+        renderHumo.material = matHumo;
+        sistemaHumo.Play();
+
+        // 3. Sistema de Brasas / Chispas Flotantes de Furia
+        GameObject objBrasas = new GameObject("ParticulasBrasasPesadilla");
+        objBrasas.transform.SetParent(contenedorAura.transform, false);
+        objBrasas.transform.localPosition = new Vector3(0f, 0.1f, 0f);
+        sistemaBrasas = objBrasas.AddComponent<ParticleSystem>();
+        sistemaBrasas.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        var mainBrasas = sistemaBrasas.main;
+        mainBrasas.playOnAwake = false;
+        mainBrasas.loop = true;
+        mainBrasas.simulationSpace = ParticleSystemSimulationSpace.World;
+        mainBrasas.scalingMode = ParticleSystemScalingMode.Local;
+        mainBrasas.startLifetime = new ParticleSystem.MinMaxCurve(0.8f, 1.6f);
+        mainBrasas.startSpeed = new ParticleSystem.MinMaxCurve(0.6f, 1.8f);
+        mainBrasas.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.14f);
+        mainBrasas.gravityModifier = -0.35f; // Ascienden como chispas ardientes
+        mainBrasas.startColor = colorAuraPatrulla;
+        mainBrasas.maxParticles = 300;
+
+        var emisionBrasas = sistemaBrasas.emission;
+        emisionBrasas.enabled = true;
+        emisionBrasas.rateOverTime = 18f;
+
+        var formaBrasas = sistemaBrasas.shape;
+        formaBrasas.enabled = true;
+        formaBrasas.shapeType = ParticleSystemShapeType.Sphere;
+        formaBrasas.radius = 0.55f;
+
+        var ruidoBrasas = sistemaBrasas.noise;
+        ruidoBrasas.enabled = true;
+        ruidoBrasas.strength = 0.55f;
+        ruidoBrasas.frequency = 0.8f;
+        ruidoBrasas.scrollSpeed = 0.5f;
+        ruidoBrasas.damping = true;
+
+        var tamBrasas = sistemaBrasas.sizeOverLifetime;
+        tamBrasas.enabled = true;
+        AnimationCurve curvaTamBrasas = new AnimationCurve();
+        curvaTamBrasas.AddKey(0.0f, 0.5f);
+        curvaTamBrasas.AddKey(0.3f, 1.0f);
+        curvaTamBrasas.AddKey(1.0f, 0.0f);
+        tamBrasas.size = new ParticleSystem.MinMaxCurve(1f, curvaTamBrasas);
+
+        var colorBrasas = sistemaBrasas.colorOverLifetime;
+        colorBrasas.enabled = true;
+        Gradient gradBrasas = new Gradient();
+        gradBrasas.SetKeys(
+            new GradientColorKey[] {
+                new GradientColorKey(Color.white, 0f),
+                new GradientColorKey(Color.white, 1f)
+            },
+            new GradientAlphaKey[] {
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(1f, 0.15f),
+                new GradientAlphaKey(0.85f, 0.7f),
+                new GradientAlphaKey(0f, 1f)
+            }
+        );
+        colorBrasas.color = gradBrasas;
+
+        var renderBrasas = objBrasas.GetComponent<ParticleSystemRenderer>();
+        renderBrasas.renderMode = ParticleSystemRenderMode.Billboard;
+        Material matBrasas = new Material(shaderParticulas);
+        matBrasas.mainTexture = CrearTexturaChispaBrillante();
+        renderBrasas.material = matBrasas;
+        sistemaBrasas.Play();
+
+        // 4. Sistema de Anillo de Pulso en el Suelo/Agua alrededor del monstruo
+        GameObject objPulso = new GameObject("ParticulasPulsoTerror");
+        objPulso.transform.SetParent(contenedorAura.transform, false);
+        objPulso.transform.localPosition = Vector3.zero;
+        sistemaPulsoAura = objPulso.AddComponent<ParticleSystem>();
+        sistemaPulsoAura.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        var mainPulso = sistemaPulsoAura.main;
+        mainPulso.playOnAwake = false;
+        mainPulso.loop = false;
+        mainPulso.simulationSpace = ParticleSystemSimulationSpace.World;
+        mainPulso.scalingMode = ParticleSystemScalingMode.Local;
+        mainPulso.startLifetime = 0.9f;
+        mainPulso.startSpeed = 0f;
+        mainPulso.startSize = 2.4f;
+        mainPulso.gravityModifier = 0f;
+        mainPulso.startColor = colorAuraPatrulla;
+        mainPulso.maxParticles = 40;
+
+        var emisionPulso = sistemaPulsoAura.emission;
+        emisionPulso.enabled = false;
+
+        var formaPulso = sistemaPulsoAura.shape;
+        formaPulso.enabled = false;
+
+        var tamPulso = sistemaPulsoAura.sizeOverLifetime;
+        tamPulso.enabled = true;
+        AnimationCurve curvaTamPulso = new AnimationCurve();
+        curvaTamPulso.AddKey(0.0f, 0.18f);
+        curvaTamPulso.AddKey(0.6f, 0.75f);
+        curvaTamPulso.AddKey(1.0f, 1.0f);
+        tamPulso.size = new ParticleSystem.MinMaxCurve(1f, curvaTamPulso);
+
+        var colorPulso = sistemaPulsoAura.colorOverLifetime;
+        colorPulso.enabled = true;
+        Gradient gradPulso = new Gradient();
+        gradPulso.SetKeys(
+            new GradientColorKey[] {
+                new GradientColorKey(Color.white, 0f),
+                new GradientColorKey(Color.white, 1f)
+            },
+            new GradientAlphaKey[] {
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(0.85f, 0.15f),
+                new GradientAlphaKey(0.35f, 0.65f),
+                new GradientAlphaKey(0f, 1f)
+            }
+        );
+        colorPulso.color = gradPulso;
+
+        var renderPulso = objPulso.GetComponent<ParticleSystemRenderer>();
+        renderPulso.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
+        Material matPulso = new Material(shaderParticulas);
+        matPulso.mainTexture = CrearTexturaAnilloAura();
+        renderPulso.material = matPulso;
+    }
+
+    // Actualiza en tiempo real la luz, el humo, las brasas y los anillos de energía según el estado del monstruo
+    private void ActualizarAuraPesadilla()
+    {
+        bool modoFuria = persiguiendo || enSecuenciaAtrapar;
+
+        Color colorObjetivo = modoFuria
+            ? colorAuraPersecucion
+            : (investigando ? colorAuraInvestigando : colorAuraPatrulla);
+
+        // 1. Actualizar Luz 3D con latido dinámico
+        if (luzAura != null)
+        {
+            luzAura.color = Color.Lerp(luzAura.color, colorObjetivo, Time.deltaTime * 6f);
+
+            float frecLatido = modoFuria ? 11f : (investigando ? 5f : 2.2f);
+            float onda = 0.5f + 0.5f * Mathf.Sin(Time.time * frecLatido);
+            float intBase = modoFuria ? intensidadLuzPersecucion : (investigando ? 4.2f : intensidadLuzPatrulla);
+            float intExtra = modoFuria ? 3.2f * onda : 0.8f * onda;
+
+            luzAura.intensity = Mathf.Lerp(luzAura.intensity, intBase + intExtra, Time.deltaTime * 8f);
+            luzAura.range = Mathf.Lerp(luzAura.range, modoFuria ? 14f : 10f, Time.deltaTime * 4f);
+        }
+
+        // 2. Actualizar Brillo Emisivo en el cuerpo del monstruo
+        if (rendererMonstruo != null && rendererMonstruo.material != null)
+        {
+            Color colorCuerpo = modoFuria
+                ? Color.Lerp(colorBaseOriginalMonstruo, new Color(1f, 0.15f, 0.15f), 0.7f)
+                : (investigando ? Color.Lerp(colorBaseOriginalMonstruo, colorAuraInvestigando, 0.45f) : colorBaseOriginalMonstruo);
+
+            if (rendererMonstruo.material.HasProperty("_BaseColor"))
+                rendererMonstruo.material.SetColor("_BaseColor", colorCuerpo);
+            else if (rendererMonstruo.material.HasProperty("_Color"))
+                rendererMonstruo.material.color = colorCuerpo;
+
+            if (rendererMonstruo.material.HasProperty("_EmissionColor"))
+            {
+                float fuerzaEmision = modoFuria ? 2.2f : (investigando ? 1.1f : 0.5f);
+                rendererMonstruo.material.SetColor("_EmissionColor", colorObjetivo * fuerzaEmision);
+            }
+        }
+
+        // 3. Actualizar Humo Oscuro / Miasma
+        if (sistemaHumo != null)
+        {
+            var mainHumo = sistemaHumo.main;
+            mainHumo.startColor = modoFuria
+                ? new ParticleSystem.MinMaxGradient(new Color(0.18f, 0.02f, 0.03f, 0.75f), new Color(0.45f, 0.04f, 0.06f, 0.65f))
+                : (investigando
+                    ? new ParticleSystem.MinMaxGradient(new Color(0.22f, 0.12f, 0.03f, 0.55f), new Color(0.12f, 0.08f, 0.04f, 0.5f))
+                    : new ParticleSystem.MinMaxGradient(new Color(0.05f, 0.10f, 0.16f, 0.48f), new Color(0.08f, 0.18f, 0.25f, 0.42f)));
+
+            var emisionHumo = sistemaHumo.emission;
+            emisionHumo.rateOverTime = modoFuria ? 40f : (investigando ? 24f : 15f);
+        }
+
+        // 4. Actualizar Brasas / Chispas de Furia
+        if (sistemaBrasas != null)
+        {
+            var mainBrasas = sistemaBrasas.main;
+            if (modoFuria)
+            {
+                mainBrasas.startColor = new ParticleSystem.MinMaxGradient(
+                    new Color(1f, 0.12f, 0.12f, 1f),
+                    new Color(1f, 0.65f, 0.15f, 1f)
+                );
+                mainBrasas.startSpeed = new ParticleSystem.MinMaxCurve(1.2f, 3.0f);
+            }
+            else if (investigando)
+            {
+                mainBrasas.startColor = new ParticleSystem.MinMaxGradient(
+                    colorAuraInvestigando,
+                    new Color(1f, 0.85f, 0.3f, 0.95f)
+                );
+                mainBrasas.startSpeed = new ParticleSystem.MinMaxCurve(0.8f, 1.8f);
+            }
+            else
+            {
+                mainBrasas.startColor = new ParticleSystem.MinMaxGradient(
+                    colorAuraPatrulla,
+                    new Color(0.65f, 0.92f, 1f, 0.85f)
+                );
+                mainBrasas.startSpeed = new ParticleSystem.MinMaxCurve(0.5f, 1.3f);
+            }
+
+            var emisionBrasas = sistemaBrasas.emission;
+            emisionBrasas.rateOverTime = modoFuria ? 70f : (investigando ? 32f : 16f);
+        }
+
+        // 5. Emitir Anillos de Pulso en el Suelo/Agua bajo el monstruo
+        if (sistemaPulsoAura != null && Time.time >= tiempoSiguientePulsoAura)
+        {
+            float intervaloPulso = modoFuria ? 0.32f : (investigando ? 0.65f : 1.15f);
+            tiempoSiguientePulsoAura = Time.time + intervaloPulso;
+
+            ParticleSystem.EmitParams ep = new ParticleSystem.EmitParams
+            {
+                position = new Vector3(transform.position.x, 0.875f, transform.position.z),
+                startSize = modoFuria ? 3.2f : (investigando ? 2.4f : 1.9f),
+                startLifetime = modoFuria ? 0.75f : 1.05f,
+                startColor = new Color(colorObjetivo.r, colorObjetivo.g, colorObjetivo.b, modoFuria ? 0.85f : 0.55f)
+            };
+            sistemaPulsoAura.Emit(ep, 1);
+        }
+    }
+
+    private Texture2D CrearTexturaHumoSuave()
+    {
+        int res = 128;
+        Texture2D tex = new Texture2D(res, res, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+
+        float centro = (res - 1) * 0.5f;
+        for (int y = 0; y < res; y++)
+        {
+            for (int x = 0; x < res; x++)
+            {
+                float dx = (x - centro) / centro;
+                float dy = (y - centro) / centro;
+                float d = Mathf.Clamp01(Mathf.Sqrt(dx * dx + dy * dy));
+                float f = 1f - (d * d);
+                float alpha = f * f * f * 0.75f;
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+        tex.Apply();
+        return tex;
+    }
+
+    private Texture2D CrearTexturaChispaBrillante()
+    {
+        int res = 64;
+        Texture2D tex = new Texture2D(res, res, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+
+        float centro = (res - 1) * 0.5f;
+        for (int y = 0; y < res; y++)
+        {
+            for (int x = 0; x < res; x++)
+            {
+                float dx = (x - centro) / centro;
+                float dy = (y - centro) / centro;
+                float d = Mathf.Clamp01(Mathf.Sqrt(dx * dx + dy * dy));
+                float nucleo = Mathf.Exp(-d * d * 8f);
+                float halo = Mathf.Pow(1f - d, 2.2f);
+                float alpha = Mathf.Clamp01(nucleo + halo * 0.65f);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+        tex.Apply();
+        return tex;
+    }
+
+    private Texture2D CrearTexturaAnilloAura()
+    {
+        int res = 128;
+        Texture2D tex = new Texture2D(res, res, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+
+        float centro = (res - 1) * 0.5f;
+        for (int y = 0; y < res; y++)
+        {
+            for (int x = 0; x < res; x++)
+            {
+                float dx = (x - centro) / centro;
+                float dy = (y - centro) / centro;
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                if (d >= 1f)
+                {
+                    tex.SetPixel(x, y, Color.clear);
+                    continue;
+                }
+
+                float anillo = Mathf.Exp(-Mathf.Pow((d - 0.80f) / 0.08f, 2f));
+                float haloInterno = 0.35f * Mathf.Exp(-Mathf.Pow((d - 0.52f) / 0.12f, 2f));
+                float borde = Mathf.Clamp01((1f - d) * 8f);
+                float alpha = Mathf.Clamp01((anillo + haloInterno) * borde);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+        tex.Apply();
+        return tex;
     }
 }
