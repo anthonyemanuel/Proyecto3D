@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
+using Unity.AI.Navigation;
 
 [RequireComponent(typeof(NavMeshAgent))]
 public class MonsterAI : MonoBehaviour
@@ -39,6 +40,10 @@ public class MonsterAI : MonoBehaviour
     private float tiempoSiguientePunto = 0f;
     private float proximaActualizacionDestino = 0f;
     private float tiempoSiguienteSalpicadura = 0f;
+    private float tiempoAtascado = 0f;
+    private Vector3 ultimaPosicionMonstruo;
+    private Vector3 puntoDesvioTemporal;
+    private float tiempoFinDesvio = 0f;
 
     // Estado de Vidas, Respawn y Efectos Visuales
     private int vidasActuales;
@@ -80,6 +85,19 @@ public class MonsterAI : MonoBehaviour
 
         agente = GetComponent<NavMeshAgent>();
         agente.speed = velocidadTranquilo;
+        agente.radius = 0.28f;
+        agente.autoRepath = true;
+        agente.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+        radioPatrulla = Mathf.Max(radioPatrulla, 18.0f);
+        ultimaPosicionMonstruo = transform.position;
+
+        SphereCollider colMonstruo = GetComponent<SphereCollider>();
+        if (colMonstruo != null)
+        {
+            colMonstruo.radius = 0.28f;
+        }
+
+        ActualizarNavMeshMapaCompleto();
 
         // Buscar referencias si no se asignaron en el Inspector
         if (jugador == null)
@@ -183,24 +201,44 @@ public class MonsterAI : MonoBehaviour
 
             puntoRuido = jugador.position;
 
-            // Actualizamos el destino 5 veces por segundo, no en cada fotograma
+            // Actualizamos el destino buscando siempre la mejor calle o camino completo hacia el jugador
             if (Time.time >= proximaActualizacionDestino)
             {
-                proximaActualizacionDestino = Time.time + 0.2f;
-                agente.SetDestination(PuntoValido(puntoRuido));
+                proximaActualizacionDestino = Time.time + 0.25f;
+
+                if (Time.time < tiempoFinDesvio)
+                {
+                    if (Vector3.Distance(transform.position, puntoDesvioTemporal) <= 1.2f)
+                    {
+                        tiempoFinDesvio = 0f;
+                        agente.SetDestination(ObtenerMejorDestinoAlcanzable(puntoRuido));
+                    }
+                    else
+                    {
+                        agente.SetDestination(puntoDesvioTemporal);
+                    }
+                }
+                else
+                {
+                    agente.SetDestination(ObtenerMejorDestinoAlcanzable(puntoRuido));
+                }
             }
+
+            // Si una calle está bloqueada o el monstruo se frena contra una esquina/obstáculo, buscar ruta por otra calle
+            VerificarYBuscarOtraCalle(puntoRuido);
         }
         // ESTADO 2: El jugador está a salvo
         else
         {
             if (persiguiendo)
             {
-                // Dejó de oír ruido: va al último punto donde lo oyó a investigar
+                // Dejó de oír ruido: va al último punto donde lo oyó a investigar por la mejor ruta disponible
                 persiguiendo = false;
                 investigando = true;
                 agente.speed = velocidadTranquilo;
                 tiempoFinInvestigacion = 0f;
-                agente.SetDestination(PuntoValido(puntoRuido));
+                tiempoFinDesvio = 0f;
+                agente.SetDestination(ObtenerMejorDestinoAlcanzable(puntoRuido));
             }
 
             if (investigando)
@@ -363,15 +401,198 @@ public class MonsterAI : MonoBehaviour
         tiempoSiguientePunto = Time.time + 5.0f;
     }
 
-    // Ajusta un punto al lugar más cercano donde el monstruo sí puede caminar
+    // Ajusta un punto al lugar más cercano donde el monstruo sí puede caminar en todo el mapa
     Vector3 PuntoValido(Vector3 punto)
     {
+        Vector3 puntoAgua = new Vector3(punto.x, 0.85f, punto.z);
         NavMeshHit hit;
-        if (NavMesh.SamplePosition(punto, out hit, 3.0f, NavMesh.AllAreas))
+        if (NavMesh.SamplePosition(puntoAgua, out hit, 10.0f, NavMesh.AllAreas))
         {
             return hit.position;
         }
-        return punto;
+        return puntoAgua;
+    }
+
+    // Reconstruye automáticamente el NavMesh sobre todo el plano de agua ampliado y registra los obstáculos del escenario
+    private void ActualizarNavMeshMapaCompleto()
+    {
+        // Asegurar que las columnas, casas circulares y plataformas tengan NavMeshObstacle para que el monstruo las rodee por las calles
+        string[] contenedoresObstaculos = { "Columnas", "CasasCirculares", "Plataformas" };
+        foreach (string nombre in contenedoresObstaculos)
+        {
+            GameObject grupo = GameObject.Find(nombre);
+            if (grupo != null)
+            {
+                Collider[] cols = grupo.GetComponentsInChildren<Collider>();
+                foreach (Collider c in cols)
+                {
+                    if (c.isTrigger) continue;
+                    if (c.GetComponent<NavMeshObstacle>() == null)
+                    {
+                        NavMeshObstacle obs = c.gameObject.AddComponent<NavMeshObstacle>();
+                        obs.carving = true;
+                        obs.carveOnlyStationary = true;
+                    }
+                }
+            }
+        }
+
+        NavMeshSurface superficie = FindFirstObjectByType<NavMeshSurface>();
+        if (superficie != null)
+        {
+            superficie.collectObjects = CollectObjects.Children;
+            superficie.BuildNavMesh();
+        }
+    }
+
+    // Evalúa múltiples puntos alrededor del objetivo y elige el camino que tenga una ruta abierta completa (sin cruzar paredes)
+    private Vector3 ObtenerMejorDestinoAlcanzable(Vector3 objetivo)
+    {
+        Vector3 baseAgua = new Vector3(objetivo.x, 0.85f, objetivo.z);
+        NavMeshPath mejorCamino = new NavMeshPath();
+        Vector3 mejorPunto = PuntoValido(baseAgua);
+        float mejorPuntaje = float.MaxValue;
+        bool encontroCaminoCompleto = false;
+
+        // Probamos el punto central y 12 puntos radiales alrededor (para no elegir el lado equivocado de una pared delgada)
+        int totalCandidatos = 13;
+        for (int i = 0; i < totalCandidatos; i++)
+        {
+            Vector3 offset = Vector3.zero;
+            if (i > 0)
+            {
+                float angulo = (i - 1) * (360f / 12f) * Mathf.Deg2Rad;
+                float radio = (i <= 6) ? 1.1f : 2.3f;
+                offset = new Vector3(Mathf.Cos(angulo) * radio, 0f, Mathf.Sin(angulo) * radio);
+            }
+
+            Vector3 intento = baseAgua + offset;
+            NavMeshHit hit;
+            if (!NavMesh.SamplePosition(intento, out hit, 4.0f, NavMesh.AllAreas)) continue;
+
+            // Verificar que no haya una pared entre el punto candidato y el jugador
+            Vector3 origenRayo = hit.position + Vector3.up * 0.5f;
+            Vector3 destinoRayo = new Vector3(objetivo.x, hit.position.y + 0.5f, objetivo.z);
+            bool hayParedEnMedio = Physics.Linecast(origenRayo, destinoRayo, out RaycastHit rayHit)
+                && rayHit.transform != jugador && !rayHit.collider.CompareTag("Agua") && !rayHit.collider.CompareTag("Basura");
+
+            NavMeshPath camino = new NavMeshPath();
+            if (agente.CalculatePath(hit.position, camino) && camino.corners.Length > 0)
+            {
+                bool esCompleto = (camino.status == NavMeshPathStatus.PathComplete);
+                float longitud = CalcularLongitudCamino(camino);
+                float distFinalAlObjetivo = Vector3.Distance(camino.corners[camino.corners.Length - 1], baseAgua);
+
+                // Priorizar rutas completas donde el monstruo puede llegar caminando por las calles sin bloqueos
+                float penalizacionPared = hayParedEnMedio ? 25f : 0f;
+                float penalizacionIncompleto = esCompleto ? 0f : (80f + distFinalAlObjetivo * 10f);
+                float puntaje = longitud + distFinalAlObjetivo * 2f + penalizacionPared + penalizacionIncompleto;
+
+                if (esCompleto && !encontroCaminoCompleto)
+                {
+                    encontroCaminoCompleto = true;
+                    mejorPuntaje = puntaje;
+                    mejorPunto = hit.position;
+                }
+                else if ((esCompleto == encontroCaminoCompleto) && puntaje < mejorPuntaje)
+                {
+                    mejorPuntaje = puntaje;
+                    mejorPunto = hit.position;
+                }
+            }
+        }
+
+        return mejorPunto;
+    }
+
+    // Si una calle está cerrada o el monstruo se atasca, busca una calle alternativa (flanqueo izquierdo/derecho) para rodear el obstáculo
+    private void VerificarYBuscarOtraCalle(Vector3 objetivo)
+    {
+        float avance = Vector3.Distance(transform.position, ultimaPosicionMonstruo);
+        ultimaPosicionMonstruo = transform.position;
+
+        bool avanzaMuyLento = avance < (agente.speed * Time.deltaTime * 0.22f);
+        bool caminoIncompleto = !agente.pathPending && agente.pathStatus == NavMeshPathStatus.PathPartial && agente.remainingDistance <= 1.6f;
+
+        if (avanzaMuyLento || caminoIncompleto)
+        {
+            tiempoAtascado += Time.deltaTime;
+        }
+        else
+        {
+            tiempoAtascado = Mathf.Max(0f, tiempoAtascado - Time.deltaTime * 2f);
+        }
+
+        if (tiempoAtascado < 0.45f && !caminoIncompleto) return;
+
+        tiempoAtascado = 0f;
+        Vector3 dirAlJugador = (objetivo - transform.position);
+        dirAlJugador.y = 0f;
+        if (dirAlJugador.sqrMagnitude < 0.1f) dirAlJugador = transform.forward;
+        dirAlJugador.Normalize();
+
+        // Probar calles laterales en distintos ángulos y distancias para rodear el bloqueo y llegar al jugador
+        float[] angulosDesvio = { 45f, -45f, 80f, -80f, 115f, -115f, 150f, -150f };
+        float[] distanciasDesvio = { 4.5f, 8.0f, 12.0f };
+
+        Vector3 mejorDesvio = Vector3.zero;
+        float mejorCosto = float.MaxValue;
+        bool halloDesvio = false;
+
+        foreach (float dist in distanciasDesvio)
+        {
+            foreach (float ang in angulosDesvio)
+            {
+                Vector3 dirDesvio = Quaternion.Euler(0f, ang, 0f) * dirAlJugador;
+                Vector3 candidato = transform.position + dirDesvio * dist;
+                candidato.y = 0.85f;
+
+                NavMeshHit hit;
+                if (!NavMesh.SamplePosition(candidato, out hit, 2.5f, NavMesh.AllAreas)) continue;
+
+                NavMeshPath caminoAlDesvio = new NavMeshPath();
+                if (!agente.CalculatePath(hit.position, caminoAlDesvio) || caminoAlDesvio.status != NavMeshPathStatus.PathComplete)
+                    continue;
+
+                // Comprobar qué tan bien conecta ese desvío con el jugador
+                NavMeshPath caminoDesdeDesvio = new NavMeshPath();
+                Vector3 destinoJugador = PuntoValido(objetivo);
+                bool conecta = NavMesh.CalculatePath(hit.position, destinoJugador, NavMesh.AllAreas, caminoDesdeDesvio);
+
+                float distFinal = (conecta && caminoDesdeDesvio.corners.Length > 0)
+                    ? Vector3.Distance(caminoDesdeDesvio.corners[caminoDesdeDesvio.corners.Length - 1], destinoJugador)
+                    : Vector3.Distance(hit.position, destinoJugador);
+
+                float costo = CalcularLongitudCamino(caminoAlDesvio)
+                    + (conecta ? CalcularLongitudCamino(caminoDesdeDesvio) : Vector3.Distance(hit.position, destinoJugador) * 1.5f)
+                    + distFinal * 4f;
+
+                if (costo < mejorCosto)
+                {
+                    mejorCosto = costo;
+                    mejorDesvio = hit.position;
+                    halloDesvio = true;
+                }
+            }
+        }
+
+        if (halloDesvio)
+        {
+            puntoDesvioTemporal = mejorDesvio;
+            tiempoFinDesvio = Time.time + 1.8f;
+            agente.SetDestination(puntoDesvioTemporal);
+        }
+    }
+
+    private float CalcularLongitudCamino(NavMeshPath camino)
+    {
+        if (camino == null || camino.corners.Length < 2) return 0f;
+        float total = 0f;
+        for (int i = 1; i < camino.corners.Length; i++)
+        {
+            total += Vector3.Distance(camino.corners[i - 1], camino.corners[i]);
+        }
+        return total;
     }
 
     private void OnGUI()
