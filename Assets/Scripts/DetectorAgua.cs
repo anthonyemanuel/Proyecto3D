@@ -17,18 +17,18 @@ public class DetectorAgua : MonoBehaviour
 
     [Header("Atmósfera: Niebla y Partículas Flotantes")]
     [Tooltip("Densidad de la niebla cuando estás a salvo en las plataformas")]
-    public float densidadNieblaBase = 0.068f;
+    public float densidadNieblaBase = 0.028f;
     [Tooltip("Densidad de la niebla cuando pisas el agua y hay peligro")]
-    public float densidadNieblaPeligro = 0.092f;
+    public float densidadNieblaPeligro = 0.042f;
     [Tooltip("Color ambiental de la niebla en noche de tormenta")]
-    public Color colorNieblaNormal = new Color(0.11f, 0.16f, 0.25f, 1f);
+    public Color colorNieblaNormal = new Color(0.14f, 0.20f, 0.30f, 1f);
     [Tooltip("Color ambiental de la niebla cuando pisas el agua")]
-    public Color colorNieblaPeligro = new Color(0.07f, 0.10f, 0.18f, 1f);
+    public Color colorNieblaPeligro = new Color(0.10f, 0.14f, 0.23f, 1f);
 
     [Header("Noche de Tormenta, Lluvia y Relámpagos")]
-    public Color colorLuzLuna = new Color(0.42f, 0.56f, 0.78f, 1f);
+    public Color colorLuzLuna = new Color(0.48f, 0.62f, 0.84f, 1f);
     public Color colorRelampago = new Color(0.82f, 0.92f, 1.0f, 1f);
-    public float intensidadLuzLuna = 0.52f;
+    public float intensidadLuzLuna = 0.78f;
     public float intensidadMaxRelampago = 5.8f;
     public float tiempoMinRelampago = 7.0f;
     public float tiempoMaxRelampago = 14.0f;
@@ -453,12 +453,12 @@ public class DetectorAgua : MonoBehaviour
         mainBruma.startSize = new ParticleSystem.MinMaxCurve(2.8f, 4.8f);
         mainBruma.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
         mainBruma.gravityModifier = 0f;
-        mainBruma.startColor = new Color(0.76f, 0.86f, 0.94f, 0.13f);
-        mainBruma.maxParticles = 90;
+        mainBruma.startColor = new Color(0.76f, 0.86f, 0.94f, 0.065f);
+        mainBruma.maxParticles = 60;
 
         var emisionBruma = sistemaBrumaBaja.emission;
         emisionBruma.enabled = true;
-        emisionBruma.rateOverTime = 10f;
+        emisionBruma.rateOverTime = 6f;
 
         var formaBruma = sistemaBrumaBaja.shape;
         formaBruma.enabled = true;
@@ -507,7 +507,7 @@ public class DetectorAgua : MonoBehaviour
         }
 
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.16f, 0.22f, 0.34f, 1f);
+        RenderSettings.ambientLight = new Color(0.24f, 0.32f, 0.46f, 1f);
 
         Light[] luces = FindObjectsByType<Light>(FindObjectsSortMode.None);
         foreach (Light l in luces)
@@ -676,7 +676,7 @@ public class DetectorAgua : MonoBehaviour
             luzDireccional.color = Color.Lerp(colorLuzLuna, colorRelampago, factorRelampago);
         }
 
-        Color ambBase = new Color(0.15f, 0.21f, 0.32f, 1f);
+        Color ambBase = new Color(0.24f, 0.32f, 0.46f, 1f);
         RenderSettings.ambientLight = Color.Lerp(ambBase, colorRelampago * 0.75f, factorRelampago);
 
         if (factorRelampago > 0.01f)
