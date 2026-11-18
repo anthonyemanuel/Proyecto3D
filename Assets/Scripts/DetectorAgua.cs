@@ -90,6 +90,12 @@ public class DetectorAgua : MonoBehaviour
         float velocidadHorizontal = Time.deltaTime > 0.0001f ? distanciaXZ / Time.deltaTime : 0f;
         ultimaPosicionXZ = posActualXZ;
 
+        // Seguridad adicional: si el jugador ya subió por encima del nivel del agua en una plataforma, está a salvo
+        if (estaEnAgua && transform.position.y > alturaSuperficieAgua + 0.22f)
+        {
+            estaEnAgua = false;
+        }
+
         if (!estaEnAgua) return;
 
         Vector3 puntoPiesAgua = new Vector3(transform.position.x, alturaSuperficieAgua, transform.position.z);
@@ -168,8 +174,9 @@ public class DetectorAgua : MonoBehaviour
                 ultimoTiempoEnAire = -1f;
             }
         }
-        else if (hit.gameObject.CompareTag("SueloSeguro") || hit.gameObject.CompareTag("Untagged"))
+        else if (hit.normal.y > 0.5f)
         {
+            // Si pisa cualquier superficie firme (plataforma, vereda, escalón) que no sea agua, está a salvo
             if (estaEnAgua)
             {
                 estaEnAgua = false;

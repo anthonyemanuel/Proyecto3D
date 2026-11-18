@@ -161,11 +161,11 @@ public class MonsterAI : MonoBehaviour
             return;
         }
 
-        // Comprobar si el monstruo alcanza al jugador
+        // Comprobar si el monstruo alcanza al jugador (SOLO puede atraparte si estás dentro del agua, nunca en una plataforma)
         float distanciaAlJugador = Vector3.Distance(transform.position, jugador.position);
         bool tieneInmunidad = Time.time < tiempoFinInmunidad;
 
-        if (!tieneInmunidad && (persiguiendo || investigando) && distanciaAlJugador <= distanciaAtrapar)
+        if (!tieneInmunidad && detectorAgua.estaEnAgua && persiguiendo && distanciaAlJugador <= distanciaAtrapar)
         {
             IniciarSecuenciaAtrapar();
             return;
