@@ -478,7 +478,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "Residuos de Pl\xE1stico"
+  m_text: "Pl\xE1stico  \xB7  Faro Dorado"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -2741,6 +2741,7 @@ MonoBehaviour:
   rootFadeGroup: {fileID: 1575267595}
   progressBarFill: {fileID: 198382418}
   spinnerRing: {fileID: 2129664199}
+  levelHeaderLabel: {fileID: 628958108}
   percentLabel: {fileID: 39289194}
   statusLabel: {fileID: 509871128}
   tipTitleLabel: {fileID: 2146135380}
@@ -4101,7 +4102,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Residuos de Papel
+  m_text: "Papel  \xB7  Faro Azul"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -4693,7 +4694,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "Residuos Org\xE1nicos"
+  m_text: "Org\xE1nico  \xB7  Faro Verde"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

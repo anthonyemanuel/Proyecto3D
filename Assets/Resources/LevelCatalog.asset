@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc310b28da287a447b5c0d948a120b66, type: 3}
+  m_Name: LevelCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::SneakyRecycling.UI.LevelCatalog
+  unlockAllForTesting: 0
+  levels:
+  - levelNumber: 1
+    sceneName: SampleScene
+    displayName: Barrio Inundado
+    subtitle: "Noche de tormenta \xB7 Clasifica los residuos evitando el agua"
+    difficulty: Normal
+    unlockedByDefault: 1
+  - levelNumber: 2
+    sceneName: Nivel2
+    displayName: Sector Industrial
+    subtitle: "Aguas profundas \xB7 Nuevas rutas y mayor amenaza nocturna"
+    difficulty: Medio
+    unlockedByDefault: 0
+  - levelNumber: 3
+    sceneName: Nivel3
+    displayName: Refugio Final
+    subtitle: "Tormenta m\xE1xima \xB7 Clasificaci\xF3n bajo presi\xF3n extrema"
+    difficulty: "Dif\xEDcil"
+    unlockedByDefault: 0

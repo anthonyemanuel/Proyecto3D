@@ -1690,7 +1690,7 @@ MonoBehaviour:
     m_SelectOnDown: {fileID: 0}
     m_SelectOnLeft: {fileID: 0}
     m_SelectOnRight: {fileID: 0}
-  m_Transition: 1
+  m_Transition: 0
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
     m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
@@ -1733,6 +1733,9 @@ MonoBehaviour:
   targetBackground: {fileID: 4876763240004190221}
   normalBgColor: {r: 0.11, g: 0.36, b: 0.36, a: 0.96}
   hoverBgColor: {r: 0.17, g: 0.54, b: 0.52, a: 1}
+  outlineGraphic: {fileID: 7419097981623665432}
+  normalOutlineColor: {r: 0.173, g: 0.769, b: 0.71, a: 0.35}
+  hoverOutlineColor: {r: 0.361, g: 0.918, b: 0.847, a: 0.95}
   accentStripe: {fileID: 0}
   normalStripeColor: {r: 0.17, g: 0.77, b: 0.71, a: 0.35}
   hoverStripeColor: {r: 0.17, g: 0.77, b: 0.71, a: 1}
@@ -3079,7 +3082,7 @@ MonoBehaviour:
     m_SelectOnDown: {fileID: 0}
     m_SelectOnLeft: {fileID: 0}
     m_SelectOnRight: {fileID: 0}
-  m_Transition: 1
+  m_Transition: 0
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
     m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
@@ -3122,6 +3125,9 @@ MonoBehaviour:
   targetBackground: {fileID: 6741415358674819357}
   normalBgColor: {r: 0.09, g: 0.14, b: 0.18, a: 0.95}
   hoverBgColor: {r: 0.15, g: 0.24, b: 0.29, a: 1}
+  outlineGraphic: {fileID: 6313809769961609292}
+  normalOutlineColor: {r: 0.173, g: 0.769, b: 0.71, a: 0.35}
+  hoverOutlineColor: {r: 0.361, g: 0.918, b: 0.847, a: 0.95}
   accentStripe: {fileID: 0}
   normalStripeColor: {r: 0.17, g: 0.77, b: 0.71, a: 0.35}
   hoverStripeColor: {r: 0.17, g: 0.77, b: 0.71, a: 1}

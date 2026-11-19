@@ -63,6 +63,10 @@ public class MonsterAI : MonoBehaviour
     private float intensidadFlashRojo = 0f;
     private bool juegoTerminado = false;
 
+    public static bool UsarGameOverExterno = false;
+    public bool JuegoTerminado => juegoTerminado;
+    public int VidasActuales => vidasActuales;
+
     // Texturas generadas para la interfaz y efectos de pantalla
     private Texture2D texVinetaRoja;
     private Texture2D texFondoHUD;
@@ -141,10 +145,10 @@ public class MonsterAI : MonoBehaviour
 
     void Update()
     {
-        // Si perdió todas las vidas, permitir reiniciar con R o Espacio
+        // Si perdió todas las vidas, permitir reiniciar con R o Espacio (si no lo maneja una UI externa)
         if (juegoTerminado)
         {
-            if (Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.Space))
+            if (!UsarGameOverExterno && (Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.Space)))
             {
                 Time.timeScale = 1f;
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
@@ -617,17 +621,20 @@ public class MonsterAI : MonoBehaviour
             GUI.color = prev;
         }
 
-        // 2. Panel Superior Derecho: Vidas y Estado de Alerta del Monstruo
-        DibujarPanelHUD();
+        // 2. Panel Superior Derecho: Vidas y Estado de Alerta del Monstruo (ocultar mientras está pausado o en pantalla modal)
+        if (Time.timeScale > 0f)
+        {
+            DibujarPanelHUD();
+        }
 
         // 3. Aviso Central cuando el monstruo te atrapa
-        if (Time.time < tiempoCartelAtrapar && !juegoTerminado)
+        if (Time.time < tiempoCartelAtrapar && !juegoTerminado && Time.timeScale > 0f)
         {
             DibujarCartelAtrapar();
         }
 
-        // 4. Pantalla de Game Over si pierde las 3 vidas
-        if (juegoTerminado)
+        // 4. Pantalla de Game Over si pierde las 3 vidas (cuando no se usa UI externa)
+        if (juegoTerminado && !UsarGameOverExterno)
         {
             DibujarPantallaGameOver();
         }

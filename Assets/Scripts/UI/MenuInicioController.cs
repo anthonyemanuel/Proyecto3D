@@ -1,19 +1,20 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace SneakyRecycling.UI
 {
     /// <summary>
-    /// Controla el Menú de Inicio (Build Index 1): navegación entre paneles modales,
-    /// confirmación de salida y transición hacia la Pantalla de Carga del Juego.
+    /// Controla el Menú de Inicio (Build Index 1): navegación limpia entre paneles modales,
+    /// selector de niveles, confirmación de salida y transición hacia la Pantalla de Carga del Juego.
     /// </summary>
     public class MenuInicioController : MonoBehaviour
     {
         [Header("Grupos de Paneles")]
         [SerializeField] private CanvasGroup fadeOverlay;
         [SerializeField] private GameObject panelPrincipal;
+        [SerializeField] private GameObject panelSelectorNiveles;
         [SerializeField] private GameObject panelComoJugar;
         [SerializeField] private GameObject panelOpciones;
         [SerializeField] private GameObject panelCreditos;
@@ -21,12 +22,14 @@ namespace SneakyRecycling.UI
 
         [Header("Botones Principales")]
         [SerializeField] private Button btnJugar;
+        [SerializeField] private Button btnSeleccionarNivel;
         [SerializeField] private Button btnComoJugar;
         [SerializeField] private Button btnOpciones;
         [SerializeField] private Button btnCreditos;
         [SerializeField] private Button btnSalir;
 
         [Header("Botones Volver / Cerrar Modales")]
+        [SerializeField] private Button btnCerrarSelectorNiveles;
         [SerializeField] private Button btnCerrarComoJugar;
         [SerializeField] private Button btnCerrarOpciones;
         [SerializeField] private Button btnCerrarCreditos;
@@ -43,22 +46,34 @@ namespace SneakyRecycling.UI
         private void Awake()
         {
             if (btnJugar != null) btnJugar.onClick.AddListener(OnPlayClicked);
+            if (btnSeleccionarNivel != null) btnSeleccionarNivel.onClick.AddListener(() => ShowModal(panelSelectorNiveles));
             if (btnComoJugar != null) btnComoJugar.onClick.AddListener(() => ShowModal(panelComoJugar));
             if (btnOpciones != null) btnOpciones.onClick.AddListener(() => ShowModal(panelOpciones));
             if (btnCreditos != null) btnCreditos.onClick.AddListener(() => ShowModal(panelCreditos));
             if (btnSalir != null) btnSalir.onClick.AddListener(() => ShowModal(panelConfirmarSalida));
 
+            if (btnCerrarSelectorNiveles != null) btnCerrarSelectorNiveles.onClick.AddListener(ShowMainPanelOnly);
             if (btnCerrarComoJugar != null) btnCerrarComoJugar.onClick.AddListener(ShowMainPanelOnly);
             if (btnCerrarOpciones != null) btnCerrarOpciones.onClick.AddListener(ShowMainPanelOnly);
             if (btnCerrarCreditos != null) btnCerrarCreditos.onClick.AddListener(ShowMainPanelOnly);
             if (btnConfirmarSalirNo != null) btnConfirmarSalirNo.onClick.AddListener(ShowMainPanelOnly);
             if (btnConfirmarSalirSi != null) btnConfirmarSalirSi.onClick.AddListener(OnConfirmQuitClicked);
+
+            if (panelSelectorNiveles != null)
+            {
+                LevelSelectorPanelController selector = panelSelectorNiveles.GetComponent<LevelSelectorPanelController>();
+                if (selector != null)
+                {
+                    selector.SetOnLevelLaunchingCallback(OnBeforeLevelSceneChange);
+                }
+            }
         }
 
         private void Start()
         {
             Time.timeScale = 1f;
             AudioListener.pause = false;
+            MonsterAI.UsarGameOverExterno = false;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
@@ -87,10 +102,12 @@ namespace SneakyRecycling.UI
         private void OnDestroy()
         {
             if (btnJugar != null) btnJugar.onClick.RemoveAllListeners();
+            if (btnSeleccionarNivel != null) btnSeleccionarNivel.onClick.RemoveAllListeners();
             if (btnComoJugar != null) btnComoJugar.onClick.RemoveAllListeners();
             if (btnOpciones != null) btnOpciones.onClick.RemoveAllListeners();
             if (btnCreditos != null) btnCreditos.onClick.RemoveAllListeners();
             if (btnSalir != null) btnSalir.onClick.RemoveAllListeners();
+            if (btnCerrarSelectorNiveles != null) btnCerrarSelectorNiveles.onClick.RemoveAllListeners();
             if (btnCerrarComoJugar != null) btnCerrarComoJugar.onClick.RemoveAllListeners();
             if (btnCerrarOpciones != null) btnCerrarOpciones.onClick.RemoveAllListeners();
             if (btnCerrarCreditos != null) btnCerrarCreditos.onClick.RemoveAllListeners();
@@ -100,7 +117,8 @@ namespace SneakyRecycling.UI
 
         private bool IsAnyModalOpen()
         {
-            return (panelComoJugar != null && panelComoJugar.activeSelf)
+            return (panelSelectorNiveles != null && panelSelectorNiveles.activeSelf)
+                || (panelComoJugar != null && panelComoJugar.activeSelf)
                 || (panelOpciones != null && panelOpciones.activeSelf)
                 || (panelCreditos != null && panelCreditos.activeSelf)
                 || (panelConfirmarSalida != null && panelConfirmarSalida.activeSelf);
@@ -108,7 +126,9 @@ namespace SneakyRecycling.UI
 
         public void ShowMainPanelOnly()
         {
+            ClearSelection();
             if (panelPrincipal != null) panelPrincipal.SetActive(true);
+            if (panelSelectorNiveles != null) panelSelectorNiveles.SetActive(false);
             if (panelComoJugar != null) panelComoJugar.SetActive(false);
             if (panelOpciones != null) panelOpciones.SetActive(false);
             if (panelCreditos != null) panelCreditos.SetActive(false);
@@ -120,12 +140,36 @@ namespace SneakyRecycling.UI
             if (isTransitioning) return;
             ShowMainPanelOnly();
             if (modal != null) modal.SetActive(true);
+            ClearSelection();
+        }
+
+        private void ClearSelection()
+        {
+            if (EventSystem.current != null)
+            {
+                EventSystem.current.SetSelectedGameObject(null);
+            }
+
+            if (panelPrincipal != null)
+            {
+                UIButtonFX[] buttons = panelPrincipal.GetComponentsInChildren<UIButtonFX>(true);
+                for (int i = 0; i < buttons.Length; i++)
+                {
+                    buttons[i].ResetVisualState();
+                }
+            }
+        }
+
+        private void OnBeforeLevelSceneChange()
+        {
+            isTransitioning = true;
+            UISettingsManager.Save();
         }
 
         private void OnPlayClicked()
         {
             if (isTransitioning) return;
-            StartCoroutine(LoadGameLoadingScreenRoutine());
+            StartCoroutine(LoadGameLoadingScreenRoutine(0));
         }
 
         private void OnConfirmQuitClicked()
@@ -164,7 +208,7 @@ namespace SneakyRecycling.UI
             }
         }
 
-        private IEnumerator LoadGameLoadingScreenRoutine()
+        private IEnumerator LoadGameLoadingScreenRoutine(int levelIndex)
         {
             isTransitioning = true;
             UISettingsManager.Save();
@@ -186,7 +230,7 @@ namespace SneakyRecycling.UI
                 fadeOverlay.alpha = 1f;
             }
 
-            SceneManager.LoadScene(UISettingsManager.SceneGameLoading);
+            UILevelFlow.LoadLevel(levelIndex);
         }
     }
 }
