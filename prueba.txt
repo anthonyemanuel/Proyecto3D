@@ -1,0 +1,42 @@
+using System;
+using System.Collections.Generic;
+
+namespace EjemploBasico
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            // 1. Entrada y salida de datos
+            Console.Write("¿Cómo te llamas? ");
+            string nombre = Console.ReadLine();
+
+            Console.Write("¿Cuál es tu edad? ");
+            if (int.TryParse(Console.ReadLine(), out int edad))
+            {
+                // 2. Condicionales
+                if (edad >= 18)
+                {
+                    Console.WriteLine($"\nHola {nombre}, eres mayor de edad.");
+                }
+                else
+                {
+                    Console.WriteLine($"\nHola {nombre}, eres menor de edad.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("\nPor favor, ingresa un número válido.");
+            }
+
+            // 3. Uso de listas y bucles
+            List<string> lenguajes = new List<string> { "C#", "Python", "JavaScript", "SQL" };
+            
+            Console.WriteLine("\nAlgunos lenguajes populares:");
+            foreach (string lenguaje in lenguajes)
+            {
+                Console.WriteLine($"- {lenguaje}");
+            }
+        }
+    }
+}
