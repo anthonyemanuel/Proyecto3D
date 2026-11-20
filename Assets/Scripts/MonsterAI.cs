@@ -18,6 +18,7 @@ public class MonsterAI : MonoBehaviour
 
     private NavMeshAgent agente;
     private bool persiguiendo = false;
+    private bool investigandoUltimoPunto = false;
     private float tiempoSiguientePunto = 0f;
     private float proximaActualizacionDestino = 0f;
 
@@ -37,7 +38,41 @@ public class MonsterAI : MonoBehaviour
             }
         }
 
+        if (detectorAgua != null)
+        {
+            detectorAgua.OnEstadoAguaCambiado += AlCambiarEstadoAgua;
+        }
+
         GenerarNuevoPuntoPatrulla();
+    }
+
+    void OnDestroy()
+    {
+        if (detectorAgua != null)
+        {
+            detectorAgua.OnEstadoAguaCambiado -= AlCambiarEstadoAgua;
+        }
+    }
+
+    void AlCambiarEstadoAgua(bool enAgua)
+    {
+        if (!agente.isOnNavMesh) return;
+
+        if (enAgua)
+        {
+            persiguiendo = true;
+            investigandoUltimoPunto = false;
+            agente.speed = velocidadCorriendo;
+            puntoRuido = jugador.position;
+            agente.SetDestination(PuntoValido(puntoRuido));
+        }
+        else if (persiguiendo)
+        {
+            // Al salir del agua, no se detiene al instante: corre a investigar el último lugar del ruido
+            persiguiendo = false;
+            investigandoUltimoPunto = true;
+            agente.SetDestination(PuntoValido(puntoRuido));
+        }
     }
 
     void Update()
@@ -45,34 +80,30 @@ public class MonsterAI : MonoBehaviour
         if (jugador == null || detectorAgua == null) return;
         if (!agente.isOnNavMesh) return;
 
-        // ESTADO 1: El jugador pisó el AGUA (hace ruido -> el monstruo corre hacia él)
-        if (detectorAgua.estaEnAgua)
+        // ESTADO 1: Persiguiendo activamente mientras el jugador sigue en el agua
+        if (persiguiendo)
         {
-            if (!persiguiendo)
-            {
-                persiguiendo = true;
-                agente.speed = velocidadCorriendo;
-            }
-
-            puntoRuido = jugador.position;
-
-            // Actualizamos el destino 5 veces por segundo, no en cada fotograma
             if (Time.time >= proximaActualizacionDestino)
             {
                 proximaActualizacionDestino = Time.time + 0.2f;
+                puntoRuido = jugador.position;
                 agente.SetDestination(PuntoValido(puntoRuido));
             }
         }
-        // ESTADO 2: El jugador está a salvo (el monstruo patrulla lento)
-        else
+        // ESTADO 2: Investigando el último punto de ruido (el jugador salió del agua)
+        else if (investigandoUltimoPunto)
         {
-            if (persiguiendo)
+            // Si llegó cerca del punto investigado, reanuda la patrulla tranquila
+            if (!agente.pathPending && agente.remainingDistance <= 1.0f)
             {
-                persiguiendo = false;
+                investigandoUltimoPunto = false;
                 agente.speed = velocidadTranquilo;
                 GenerarNuevoPuntoPatrulla();
             }
-
+        }
+        // ESTADO 3: Patrullando tranquilamente
+        else
+        {
             PatrullarLentamente();
         }
     }
@@ -95,7 +126,10 @@ public class MonsterAI : MonoBehaviour
         // Probamos varias veces hasta encontrar un punto sobre el mapa de caminos
         for (int i = 0; i < 10; i++)
         {
-            Vector3 candidato = transform.position + Random.insideUnitSphere * radioPatrulla;
+            Vector3 randomDirection = Random.insideUnitSphere * radioPatrulla;
+            randomDirection.y = 0f; // Evitamos generar puntos flotantes o subterráneos
+            Vector3 candidato = transform.position + randomDirection;
+
             NavMeshHit hit;
             if (NavMesh.SamplePosition(candidato, out hit, 2.0f, NavMesh.AllAreas))
             {
