@@ -55,8 +55,10 @@ public class PlayerPickup : MonoBehaviour
 
         if (basurasEnRango.Count > 0)
         {
-            // Tomamos la basura más cercana
-            GameObject basuraAAtrapar = basurasEnRango[0];
+            // Buscamos realmente la basura a menor distancia
+            GameObject basuraAAtrapar = ObtenerBasuraMasCercana();
+            if (basuraAAtrapar == null) return;
+
             basurasEnRango.Remove(basuraAAtrapar);
 
             basuraEnMano = basuraAAtrapar;
@@ -114,5 +116,38 @@ public class PlayerPickup : MonoBehaviour
         basuraEnMano = null;
 
         Debug.Log("Soltaste la basura.");
+    }
+
+    GameObject ObtenerBasuraMasCercana()
+    {
+        GameObject masCercana = null;
+        float menorDistancia = float.MaxValue;
+        Vector3 posicionJugador = transform.position;
+
+        for (int i = 0; i < basurasEnRango.Count; i++)
+        {
+            GameObject basura = basurasEnRango[i];
+            if (basura == null) continue;
+
+            float distancia = Vector3.Distance(posicionJugador, basura.transform.position);
+            if (distancia < menorDistancia)
+            {
+                menorDistancia = distancia;
+                masCercana = basura;
+            }
+        }
+        return masCercana;
+    }
+
+    public bool TieneBasura() => basuraEnMano != null;
+    public GameObject ObtenerBasuraActual() => basuraEnMano;
+
+    public void EntregarBasura()
+    {
+        if (basuraEnMano != null)
+        {
+            Destroy(basuraEnMano);
+            basuraEnMano = null;
+        }
     }
 }

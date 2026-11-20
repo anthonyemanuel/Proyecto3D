@@ -31,6 +31,7 @@ public class PlayerController : MonoBehaviour
     {
         ManejarRotacionCamara();
         ManejarMovimiento();
+        ManejarEscapeCursor();
     }
 
     void ManejarRotacionCamara()
@@ -59,10 +60,14 @@ public class PlayerController : MonoBehaviour
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
 
-        float velocidadActual = Input.GetKey(KeyCode.LeftShift) ? velocidadCorrer : velocidadCaminar;
-
+        // Normalizamos si la magnitud supera 1 para evitar mayor velocidad al moverse en diagonal
         Vector3 mover = transform.right * x + transform.forward * z;
-        controller.Move(mover * velocidadActual * Time.deltaTime);
+        if (mover.sqrMagnitude > 1f)
+        {
+            mover.Normalize();
+        }
+
+        float velocidadActual = Input.GetKey(KeyCode.LeftShift) ? velocidadCorrer : velocidadCaminar;
 
         if (Input.GetButtonDown("Jump") && estaEnSuelo)
         {
@@ -70,6 +75,19 @@ public class PlayerController : MonoBehaviour
         }
 
         velocidadVertical.y += gravedad * Time.deltaTime;
-        controller.Move(velocidadVertical * Time.deltaTime);
+
+        // Unificamos el movimiento horizontal y vertical en una sola llamada física a controller.Move()
+        Vector3 movimientoTotal = (mover * velocidadActual) + velocidadVertical;
+        controller.Move(movimientoTotal * Time.deltaTime);
+    }
+
+    void ManejarEscapeCursor()
+    {
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            bool bloqueado = Cursor.lockState == CursorLockMode.Locked;
+            Cursor.lockState = bloqueado ? CursorLockMode.None : CursorLockMode.Locked;
+            Cursor.visible = bloqueado;
+        }
     }
 }

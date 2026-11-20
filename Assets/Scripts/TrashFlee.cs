@@ -21,7 +21,7 @@ public class TrashFlee : MonoBehaviour
         rb = GetComponent<Rigidbody>();
     }
 
-    void Update()
+    void FixedUpdate()
     {
         // Si no hay jugador, o si el Rigidbody no existe, no hacemos nada
         if (jugador == null || rb == null) return;
@@ -30,16 +30,16 @@ public class TrashFlee : MonoBehaviour
         if (rb.isKinematic) return;
 
         // Medimos la distancia entre la basura y el jugador
-        float distancia = Vector3.Distance(transform.position, jugador.position);
+        float distancia = Vector3.Distance(rb.position, jugador.position);
 
         if (distancia < distanciaDeteccion)
         {
             // Calculamos la dirección opuesta al jugador
-            Vector3 direccionHuida = (transform.position - jugador.position).normalized;
+            Vector3 direccionHuida = (rb.position - jugador.position).normalized;
             direccionHuida.y = 0; // Evitamos que se hunda en el suelo
 
-            // Movemos la basura usando el Rigidbody para respetar las colisiones del barrio
-            Vector3 nuevaPosicion = transform.position + direccionHuida * velocidadHuida * Time.deltaTime;
+            // Movemos la basura usando el Rigidbody en FixedUpdate para cálculo físico correcto
+            Vector3 nuevaPosicion = rb.position + direccionHuida * velocidadHuida * Time.fixedDeltaTime;
             rb.MovePosition(nuevaPosicion);
         }
     }

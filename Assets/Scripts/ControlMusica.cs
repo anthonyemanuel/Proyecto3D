@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class ControlMusica : MonoBehaviour
 {
@@ -8,13 +9,21 @@ public class ControlMusica : MonoBehaviour
     public AudioClip musicaTension;
     public DetectorAgua detectorAgua;
 
-    private bool tensionActiva = false;
+    [Header("Ajustes de Transición")]
+    [Range(0.2f, 2f)] public float duracionTransicion = 0.8f;
+    private float volumenMaximo = 1f;
+    private Coroutine corrutinaTransicion;
 
     void Start()
     {
         if (fuenteMusica == null)
         {
             fuenteMusica = GetComponent<AudioSource>();
+        }
+
+        if (fuenteMusica != null)
+        {
+            volumenMaximo = fuenteMusica.volume > 0 ? fuenteMusica.volume : 1f;
         }
 
         if (detectorAgua == null)
@@ -25,30 +34,63 @@ public class ControlMusica : MonoBehaviour
                 detectorAgua = jugador.GetComponent<DetectorAgua>();
             }
         }
-    }
 
-    void Update()
-    {
-        if (detectorAgua == null || fuenteMusica == null) return;
-
-        if (detectorAgua.estaEnAgua && !tensionActiva)
+        if (detectorAgua != null)
         {
-            CambiarMusica(musicaTension);
-            tensionActiva = true;
+            detectorAgua.OnEstadoAguaCambiado += AlCambiarEstadoAgua;
         }
-        else if (!detectorAgua.estaEnAgua && tensionActiva)
+
+        // Reproducir música ambiente por defecto si no está sonando
+        if (fuenteMusica != null && musicaAmbiente != null && !fuenteMusica.isPlaying)
         {
-            CambiarMusica(musicaAmbiente);
-            tensionActiva = false;
+            fuenteMusica.clip = musicaAmbiente;
+            fuenteMusica.loop = true;
+            fuenteMusica.Play();
         }
     }
 
-    void CambiarMusica(AudioClip nuevaMusica)
+    void OnDestroy()
     {
-        if (nuevaMusica == null) return;
+        if (detectorAgua != null)
+        {
+            detectorAgua.OnEstadoAguaCambiado -= AlCambiarEstadoAgua;
+        }
+    }
 
-        fuenteMusica.clip = nuevaMusica;
-        fuenteMusica.loop = true;
+    void AlCambiarEstadoAgua(bool enAgua)
+    {
+        AudioClip proximoClip = enAgua ? musicaTension : musicaAmbiente;
+        if (corrutinaTransicion != null) StopCoroutine(corrutinaTransicion);
+        corrutinaTransicion = StartCoroutine(TransicionSuave(proximoClip));
+    }
+
+    IEnumerator TransicionSuave(AudioClip nuevoClip)
+    {
+        if (fuenteMusica == null || nuevoClip == null || fuenteMusica.clip == nuevoClip) yield break;
+
+        float mitadTiempo = duracionTransicion * 0.5f;
+        float volumenInicial = fuenteMusica.volume;
+
+        // Fade Out
+        float tiempo = 0f;
+        while (tiempo < mitadTiempo)
+        {
+            tiempo += Time.deltaTime;
+            fuenteMusica.volume = Mathf.Lerp(volumenInicial, 0f, tiempo / mitadTiempo);
+            yield return null;
+        }
+
+        fuenteMusica.clip = nuevoClip;
         fuenteMusica.Play();
+
+        // Fade In
+        tiempo = 0f;
+        while (tiempo < mitadTiempo)
+        {
+            tiempo += Time.deltaTime;
+            fuenteMusica.volume = Mathf.Lerp(0f, volumenMaximo, tiempo / mitadTiempo);
+            yield return null;
+        }
+        fuenteMusica.volume = volumenMaximo;
     }
 }

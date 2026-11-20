@@ -3,11 +3,12 @@ using TMPro;
 
 public class GameManager : MonoBehaviour
 {
-    public static GameManager Instance;
+    public static GameManager Instance { get; private set; }
 
     [Header("UI y Puntuación")]
     public TextMeshProUGUI textoPuntajeUI;
     private int puntajeActual = 0;
+    public int PuntajeActual => puntajeActual;
 
     void Awake()
     {
@@ -37,7 +38,7 @@ public class GameManager : MonoBehaviour
     {
         if (textoPuntajeUI != null)
         {
-            textoPuntajeUI.text = "Puntaje: " + puntajeActual;
+            textoPuntajeUI.SetText("Puntaje: {0}", puntajeActual);
         }
     }
 }

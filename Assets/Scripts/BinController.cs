@@ -2,11 +2,19 @@ using UnityEngine;
 
 public class BinController : MonoBehaviour
 {
-    public enum TipoTacho { Papel, Plastico, Organico }
-    public TipoTacho tipoAceptado;
+    public TipoResiduo tipoAceptado;
+
+    [Header("Configuración de Puntuación")]
+    public int puntosPorBasura = 10;
 
     [Header("Sonidos")]
     public AudioClip sonidoDepositar;
+    private AudioSource audioSource;
+
+    private void Awake()
+    {
+        audioSource = GetComponent<AudioSource>();
+    }
 
     private void OnTriggerEnter(Collider other)
     {
@@ -16,34 +24,38 @@ public class BinController : MonoBehaviour
             PlayerPickup pickup = other.GetComponent<PlayerPickup>();
 
             // Verificamos si el jugador efectivamente trae basura en la mano
-            if (pickup != null && pickup.basuraEnMano != null)
+            if (pickup != null && pickup.TieneBasura())
             {
-                TrashItem itemBasura = pickup.basuraEnMano.GetComponent<TrashItem>();
+                TrashItem itemBasura = pickup.ObtenerBasuraActual().GetComponent<TrashItem>();
 
                 if (itemBasura != null)
                 {
-                    // Comparamos si el tipo de la basura coincide con el tacho
-                    if (itemBasura.tipoResiduo.ToString() == tipoAceptado.ToString())
+                    // Comparamos directamente por enum (cero asignación de memoria)
+                    if (itemBasura.tipoResiduo == tipoAceptado)
                     {
                         Debug.Log("¡Correcto! Entregaste " + itemBasura.tipoResiduo + " en el tacho " + tipoAceptado);
 
                         // Sonido al depositar
                         if (sonidoDepositar != null)
                         {
-                            AudioSource.PlayClipAtPoint(sonidoDepositar, transform.position);
+                            if (audioSource != null)
+                            {
+                                audioSource.PlayOneShot(sonidoDepositar);
+                            }
+                            else
+                            {
+                                AudioSource.PlayClipAtPoint(sonidoDepositar, transform.position);
+                            }
                         }
 
                         // Sumamos los puntos
                         if (GameManager.Instance != null)
                         {
-                            GameManager.Instance.SumarPuntos(10);
+                            GameManager.Instance.SumarPuntos(puntosPorBasura);
                         }
 
-                        // Destruimos la basura que llevábamos en la mano
-                        Destroy(pickup.basuraEnMano);
-
-                        // Limpiamos la mano del jugador
-                        pickup.basuraEnMano = null;
+                        // Delegamos la entrega y limpieza al jugador de forma limpia
+                        pickup.EntregarBasura();
                     }
                     else
                     {
