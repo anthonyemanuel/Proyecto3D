@@ -60,6 +60,21 @@ public class DetectorAgua : MonoBehaviour
     private float duracionRelampagoActual = 0.45f;
     private float tiempoSiguienteGotaLluviaOnda = 0f;
 
+    // Sistema de Apliques / Luces de Pared con Suspenso Dinámico
+    private class LuzParedSuspenso
+    {
+        public Light luz;
+        public Material matBombilla;
+        public Vector3 posicion;
+        public float intensidadBase;
+        public float fase;
+        public float proximoFallo;
+        public float finFallo;
+    }
+
+    private System.Collections.Generic.List<LuzParedSuspenso> lucesPared = new System.Collections.Generic.List<LuzParedSuspenso>();
+    private Transform monstruoRef;
+
     void Awake()
     {
         GenerarPlataformasZonasAgua();
@@ -83,12 +98,14 @@ public class DetectorAgua : MonoBehaviour
         CrearSistemasDeParticulas();
         CrearSistemasNieblaFlotante();
         InicializarTormentaNocturna();
+        CrearLucesParedSuspenso();
     }
 
     void Update()
     {
         ActualizarAtmosferaNiebla();
         ActualizarTormentaYRelampagos();
+        ActualizarLucesParedSuspenso();
 
         Vector3 posActualXZ = new Vector3(transform.position.x, 0f, transform.position.z);
         float distanciaXZ = Vector3.Distance(posActualXZ, ultimaPosicionXZ);
@@ -1020,5 +1037,210 @@ public class DetectorAgua : MonoBehaviour
         movil.puntoB = goB.transform;
         movil.velocidad = velocidad;
         movil.tiempoEspera = espera;
+    }
+
+    // Coloca apliques de pared sutiles e intrigantes a lo largo de los pasillos, la galería y la arena
+    private void CrearLucesParedSuspenso()
+    {
+        if (GameObject.Find("LucesPared_Suspenso") != null) return;
+
+        MonsterAI iaMonstruo = FindFirstObjectByType<MonsterAI>();
+        if (iaMonstruo != null) monstruoRef = iaMonstruo.transform;
+
+        GameObject contenedor = new GameObject("LucesPared_Suspenso");
+
+        Shader shaderLit = Shader.Find("Universal Render Pipeline/Lit");
+        if (shaderLit == null) shaderLit = Shader.Find("Standard");
+
+        Material matSoporte = new Material(shaderLit);
+        if (matSoporte.HasProperty("_BaseColor")) matSoporte.SetColor("_BaseColor", new Color(0.10f, 0.11f, 0.13f, 1f));
+        else matSoporte.color = new Color(0.10f, 0.11f, 0.13f, 1f);
+        if (matSoporte.HasProperty("_Metallic")) matSoporte.SetFloat("_Metallic", 0.75f);
+        if (matSoporte.HasProperty("_Smoothness")) matSoporte.SetFloat("_Smoothness", 0.45f);
+
+        // Posiciones montadas al ras de las paredes reales del mapa (posición + dirección hacia el pasillo)
+        Vector3[] posiciones = new Vector3[]
+        {
+            // Pasillo Izquierdo (Cube 3, x = -33.49)
+            new Vector3(-33.32f, 3.35f, -24.0f),
+            new Vector3(-33.32f, 3.35f,  -8.0f),
+            new Vector3(-33.32f, 3.35f,  12.0f),
+            new Vector3(-33.32f, 3.35f,  26.0f),
+
+            // Pasillo Superior Norte (Cube 1, z = 33.85 y Cube 14, z = 32.80)
+            new Vector3(-14.0f, 3.35f, 33.68f),
+            new Vector3(  0.0f, 3.35f, 33.68f),
+            new Vector3( 14.0f, 3.35f, 33.68f),
+            new Vector3( 26.0f, 3.35f, 32.63f),
+
+            // Gran Galería Central / Museo (Cube 10 norte y Cube 18 sur)
+            new Vector3(-10.0f, 3.45f, 26.26f),
+            new Vector3(  2.0f, 3.45f, 26.26f),
+            new Vector3( 13.0f, 3.45f, 26.26f),
+            new Vector3( -6.0f, 3.45f,  9.69f),
+            new Vector3( 10.0f, 3.45f,  9.69f),
+
+            // Pasillo Medio-Oeste (Cube 20, x = -6.27)
+            new Vector3( -6.44f, 3.35f,   2.0f),
+            new Vector3( -6.44f, 3.35f, -14.0f),
+
+            // Arena del Monstruo (Cube 18 norte, Cube 19 este, Cube 20 oeste)
+            new Vector3(  2.0f, 3.45f,   9.35f),
+            new Vector3( 15.0f, 3.45f,   9.35f),
+            new Vector3( 22.91f, 3.45f,  -2.0f),
+            new Vector3( 22.91f, 3.45f, -16.0f),
+            new Vector3( -6.10f, 3.45f,  -7.0f)
+        };
+
+        Vector3[] normales = new Vector3[]
+        {
+            Vector3.right, Vector3.right, Vector3.right, Vector3.right,
+            Vector3.back, Vector3.back, Vector3.back, Vector3.back,
+            Vector3.back, Vector3.back, Vector3.back, Vector3.forward, Vector3.forward,
+            Vector3.left, Vector3.left,
+            Vector3.back, Vector3.back, Vector3.left, Vector3.left, Vector3.right
+        };
+
+        for (int i = 0; i < posiciones.Length; i++)
+        {
+            CrearUnApliquePared(contenedor.transform, "ApliquePared_" + (i + 1), posiciones[i], normales[i], matSoporte, shaderLit, i);
+        }
+    }
+
+    private void CrearUnApliquePared(Transform padre, string nombre, Vector3 posPared, Vector3 normalHaciaPasillo, Material matSoporte, Shader shaderLit, int indice)
+    {
+        GameObject aplique = new GameObject(nombre);
+        aplique.transform.SetParent(padre, false);
+        aplique.transform.position = posPared;
+        aplique.transform.rotation = Quaternion.LookRotation(normalHaciaPasillo, Vector3.up);
+
+        // 1. Base metálica oscura pegada a la pared
+        GameObject placa = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        placa.name = "PlacaSoporte";
+        placa.transform.SetParent(aplique.transform, false);
+        placa.transform.localPosition = new Vector3(0f, 0f, 0.03f);
+        placa.transform.localScale = new Vector3(0.24f, 0.42f, 0.06f);
+        Destroy(placa.GetComponent<Collider>());
+        placa.GetComponent<Renderer>().sharedMaterial = matSoporte;
+
+        // 2. Brazo superior / visera metálica para proyectar sombra elegante hacia abajo
+        GameObject visera = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        visera.name = "Visera";
+        visera.transform.SetParent(aplique.transform, false);
+        visera.transform.localPosition = new Vector3(0f, 0.16f, 0.18f);
+        visera.transform.localScale = new Vector3(0.30f, 0.05f, 0.28f);
+        Destroy(visera.GetComponent<Collider>());
+        visera.GetComponent<Renderer>().sharedMaterial = matSoporte;
+
+        // 3. Bombilla / fanal de vidrio esmerilado con emisión independiente
+        GameObject bombilla = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        bombilla.name = "FanalLuz";
+        bombilla.transform.SetParent(aplique.transform, false);
+        bombilla.transform.localPosition = new Vector3(0f, 0.02f, 0.18f);
+        bombilla.transform.localScale = new Vector3(0.14f, 0.12f, 0.14f);
+        Destroy(bombilla.GetComponent<Collider>());
+
+        Material matBombilla = new Material(shaderLit);
+        matBombilla.EnableKeyword("_EMISSION");
+        Color colorCalido = new Color(1.0f, 0.72f, 0.40f, 1f);
+        if (matBombilla.HasProperty("_BaseColor")) matBombilla.SetColor("_BaseColor", colorCalido);
+        else matBombilla.color = colorCalido;
+        if (matBombilla.HasProperty("_EmissionColor")) matBombilla.SetColor("_EmissionColor", colorCalido * 1.4f);
+        bombilla.GetComponent<Renderer>().sharedMaterial = matBombilla;
+
+        // 4. Luz Puntual suave y atmosférica (sin excesos)
+        GameObject objLuz = new GameObject("LuzAplique");
+        objLuz.transform.SetParent(aplique.transform, false);
+        objLuz.transform.localPosition = new Vector3(0f, -0.05f, 0.45f);
+        Light luz = objLuz.AddComponent<Light>();
+        luz.type = LightType.Point;
+        luz.color = colorCalido;
+        luz.range = 7.8f;
+        luz.intensity = 1.55f;
+        luz.shadows = LightShadows.None;
+
+        lucesPared.Add(new LuzParedSuspenso
+        {
+            luz = luz,
+            matBombilla = matBombilla,
+            posicion = posPared,
+            intensidadBase = Random.Range(1.35f, 1.75f),
+            fase = indice * 1.37f,
+            proximoFallo = Time.time + Random.Range(3.5f, 14.0f),
+            finFallo = -1f
+        });
+    }
+
+    // Actualiza las luces de pared de forma sutil: respiración lenta, micro-parpadeos eléctricos y reacción a la cercanía del monstruo
+    private void ActualizarLucesParedSuspenso()
+    {
+        if (lucesPared.Count == 0) return;
+
+        Color colorNormal = new Color(1.0f, 0.72f, 0.40f, 1f);     // Ámbar antiguo cálido y misterioso
+        Color colorTensionAgua = new Color(0.62f, 0.74f, 0.88f, 1f); // Tono frío/baja tensión cuando pisas el agua
+        Color colorCercaMonstruo = new Color(0.95f, 0.22f, 0.16f, 1f); // Carmesí inquietante cuando el monstruo pasa cerca
+
+        float t = Time.time;
+        bool relampagoActivo = (t - tiempoInicioRelampago) >= 0f && (t - tiempoInicioRelampago) <= 0.22f;
+
+        for (int i = 0; i < lucesPared.Count; i++)
+        {
+            LuzParedSuspenso fp = lucesPared[i];
+            if (fp.luz == null) continue;
+
+            // Factor de proximidad del monstruo a ESTA luz específica (0 = lejos, 1 = justo debajo)
+            float cercaniaMonstruo = 0f;
+            if (monstruoRef != null)
+            {
+                float d = Vector3.Distance(fp.posicion, monstruoRef.position);
+                cercaniaMonstruo = Mathf.Clamp01(1f - (d / 9.5f));
+            }
+
+            // Disparar micro-fallos eléctricos ocasionales (más frecuentes si el monstruo está cerca)
+            if (t >= fp.proximoFallo)
+            {
+                fp.finFallo = t + Random.Range(0.14f, 0.36f);
+                float espera = cercaniaMonstruo > 0.25f ? Random.Range(0.6f, 2.0f) : Random.Range(6.0f, 18.0f);
+                fp.proximoFallo = t + espera;
+            }
+
+            // Respiración atmosférica muy sutil
+            float respiracion = 0.90f + 0.10f * Mathf.Sin(t * 1.4f + fp.fase);
+            float multiplicador = respiracion;
+
+            // Micro-parpadeo si está en ventana de fallo o si el monstruo pasa por debajo
+            if (t < fp.finFallo)
+            {
+                float flicker = Mathf.PerlinNoise(t * 28f, fp.fase);
+                multiplicador *= (flicker > 0.48f) ? 0.95f : 0.22f;
+            }
+            else if (cercaniaMonstruo > 0.35f)
+            {
+                float temblor = Mathf.PerlinNoise(t * 18f, fp.fase + 3.1f);
+                multiplicador *= Mathf.Lerp(1f, (temblor > 0.4f ? 0.85f : 0.25f), cercaniaMonstruo);
+            }
+
+            // Baja de tensión sutil cuando pisas el agua o cae un relámpago
+            if (estaEnAgua) multiplicador *= 0.76f;
+            if (relampagoActivo && (i % 3 == 0)) multiplicador *= 0.45f;
+
+            // Color dinámico según el desarrollo del juego
+            Color colorObjetivo = estaEnAgua
+                ? Color.Lerp(colorNormal, colorTensionAgua, 0.45f)
+                : colorNormal;
+
+            if (cercaniaMonstruo > 0.05f)
+            {
+                colorObjetivo = Color.Lerp(colorObjetivo, colorCercaMonstruo, cercaniaMonstruo * 0.85f);
+            }
+
+            fp.luz.color = Color.Lerp(fp.luz.color, colorObjetivo, Time.deltaTime * 5f);
+            fp.luz.intensity = Mathf.Lerp(fp.luz.intensity, fp.intensidadBase * multiplicador, Time.deltaTime * 14f);
+
+            if (fp.matBombilla != null && fp.matBombilla.HasProperty("_EmissionColor"))
+            {
+                fp.matBombilla.SetColor("_EmissionColor", fp.luz.color * (0.9f * multiplicador + 0.25f));
+            }
+        }
     }
 }
