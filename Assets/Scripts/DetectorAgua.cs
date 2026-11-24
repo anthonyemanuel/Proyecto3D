@@ -60,6 +60,11 @@ public class DetectorAgua : MonoBehaviour
     private float duracionRelampagoActual = 0.45f;
     private float tiempoSiguienteGotaLluviaOnda = 0f;
 
+    void Awake()
+    {
+        GenerarPlataformasZonasAgua();
+    }
+
     void Start()
     {
         GameObject objetoAgua = GameObject.FindGameObjectWithTag("Agua");
@@ -881,5 +886,139 @@ public class DetectorAgua : MonoBehaviour
 
         tex.Apply();
         return tex;
+    }
+
+    // Genera plataformas variadas (rectangulares, circulares, en L, puentes y móviles) en las zonas de agua abierta del nivel
+    private void GenerarPlataformasZonasAgua()
+    {
+        if (GameObject.Find("PlataformasExtra_Agua") != null) return;
+
+        GameObject contenedor = new GameObject("PlataformasExtra_Agua");
+        contenedor.tag = "SueloSeguro";
+
+        // Reutilizar el material de las plataformas existentes del nivel para mantener la estética
+        Material matBase = null;
+        GameObject grupoExistente = GameObject.Find("Plataformas");
+        if (grupoExistente != null)
+        {
+            Renderer r = grupoExistente.GetComponentInChildren<Renderer>();
+            if (r != null) matBase = r.sharedMaterial;
+        }
+
+        Material matMovil = matBase != null ? new Material(matBase) : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        matMovil.EnableKeyword("_EMISSION");
+        if (matMovil.HasProperty("_EmissionColor"))
+        {
+            matMovil.SetColor("_EmissionColor", new Color(0.10f, 0.35f, 0.50f, 1f));
+        }
+
+        // === ZONA 1: Pasillo Superior Norte (z = +28..+32, x = -19..+22) ===
+        CrearPlataformaCircular(contenedor.transform, "IslaNorte_Inicio", new Vector3(-16.5f, 1.08f, 30.0f), 2.8f, matBase);
+        CrearPlataformaMovil(contenedor.transform, "MovilNorte_1", new Vector3(-12.5f, 1.10f, 30.0f), new Vector3(-3.5f, 1.10f, 30.0f), new Vector3(2.4f, 0.16f, 2.0f), 2.3f, 0.9f, matMovil);
+        CrearPlataformaCaja(contenedor.transform, "DeckNorte_Centro", new Vector3(0.0f, 1.12f, 30.0f), new Vector3(3.2f, 0.16f, 2.6f), 0f, matBase);
+        CrearPlataformaCircular(contenedor.transform, "PiedraNorte_1", new Vector3(4.2f, 1.10f, 31.2f), 2.2f, matBase);
+        CrearPlataformaCircular(contenedor.transform, "PiedraNorte_2", new Vector3(7.5f, 1.10f, 28.8f), 2.2f, matBase);
+        CrearPlataformaMovil(contenedor.transform, "MovilNorte_2", new Vector3(10.5f, 1.10f, 30.0f), new Vector3(18.5f, 1.10f, 30.0f), new Vector3(2.4f, 0.16f, 2.0f), 2.4f, 0.9f, matMovil);
+
+        // === ZONA 2: Sala Noreste (x = +20..+32, z = +19..+31) ===
+        CrearPlataformaCircular(contenedor.transform, "IslaNoreste_GranDeck", new Vector3(23.5f, 1.10f, 28.5f), 3.6f, matBase);
+        CrearPlataformaCaja(contenedor.transform, "PuenteNoreste_1", new Vector3(21.5f, 1.08f, 23.8f), new Vector3(2.2f, 0.16f, 4.4f), 0f, matBase);
+        CrearPlataformaCaja(contenedor.transform, "PuenteNoreste_Puerta", new Vector3(21.0f, 1.06f, 19.5f), new Vector3(2.5f, 0.16f, 2.2f), 0f, matBase);
+
+        // === ZONA 3: Gran Galería Central / Museo (x = -18..+21, z = +10..+25) ===
+        CrearPlataformaCircular(contenedor.transform, "IslaGaleria_Este", new Vector3(17.0f, 1.08f, 15.5f), 3.2f, matBase);
+        CrearPlataformaMovil(contenedor.transform, "MovilGaleria_Este", new Vector3(13.0f, 1.10f, 15.5f), new Vector3(4.5f, 1.10f, 15.5f), new Vector3(2.6f, 0.16f, 2.2f), 2.2f, 1.0f, matMovil);
+
+        // Plataforma grande en forma de L en el centro de la galería
+        CrearPlataformaCaja(contenedor.transform, "DeckGaleria_CentroBase", new Vector3(0.5f, 1.10f, 16.0f), new Vector3(3.4f, 0.16f, 3.2f), 0f, matBase);
+        CrearPlataformaCaja(contenedor.transform, "DeckGaleria_CentroBrazo", new Vector3(0.5f, 1.10f, 20.6f), new Vector3(2.2f, 0.16f, 4.8f), 0f, matBase);
+        CrearPlataformaCircular(contenedor.transform, "IslaGaleria_NorteEste", new Vector3(9.5f, 1.08f, 22.0f), 2.8f, matBase);
+        CrearPlataformaCircular(contenedor.transform, "IslaGaleria_NorteOeste", new Vector3(-9.0f, 1.08f, 22.0f), 2.8f, matBase);
+
+        CrearPlataformaMovil(contenedor.transform, "MovilGaleria_Oeste", new Vector3(-3.5f, 1.10f, 16.0f), new Vector3(-12.5f, 1.10f, 16.0f), new Vector3(2.5f, 0.16f, 2.2f), 2.3f, 1.0f, matMovil);
+        CrearPlataformaCircular(contenedor.transform, "IslaGaleria_Oeste", new Vector3(-16.5f, 1.08f, 14.5f), 3.0f, matBase);
+        CrearPlataformaCaja(contenedor.transform, "PuenteGaleria_SalidaSur", new Vector3(-17.5f, 1.08f, 10.6f), new Vector3(2.6f, 0.16f, 2.6f), 0f, matBase);
+
+        // === ZONA 4: Pasillo Medio-Oeste (x = -20..-8, z = -1..+8) ===
+        CrearPlataformaCircular(contenedor.transform, "IslaMedioOeste_1", new Vector3(-17.0f, 1.08f, 6.2f), 2.6f, matBase);
+        CrearPlataformaMovil(contenedor.transform, "MovilMedioOeste", new Vector3(-13.5f, 1.10f, 5.5f), new Vector3(-13.5f, 1.10f, -0.5f), new Vector3(2.3f, 0.16f, 2.1f), 2.0f, 0.9f, matMovil);
+        CrearPlataformaCaja(contenedor.transform, "DeckMedioOeste_Lateral", new Vector3(-9.5f, 1.08f, 3.0f), new Vector3(2.4f, 0.16f, 2.4f), 20f, matBase);
+
+        // === ZONA 5: Parte Norte de la Arena del Monstruo (x = -4..+21, z = 0..+8) ===
+        CrearPlataformaCircular(contenedor.transform, "IslaArena_NorteOeste", new Vector3(0.0f, 1.08f, 4.5f), 2.8f, matBase);
+        CrearPlataformaMovil(contenedor.transform, "MovilArena_Norte", new Vector3(4.0f, 1.10f, 4.5f), new Vector3(13.0f, 1.10f, 4.5f), new Vector3(2.4f, 0.16f, 2.0f), 2.4f, 0.8f, matMovil);
+        CrearPlataformaCircular(contenedor.transform, "IslaArena_NorteEste", new Vector3(17.5f, 1.08f, 4.0f), 3.0f, matBase);
+        CrearPlataformaCaja(contenedor.transform, "PuenteArena_Este", new Vector3(18.0f, 1.08f, -1.2f), new Vector3(2.2f, 0.16f, 4.2f), 0f, matBase);
+
+        // === ZONA 6: Corredor Sur (x = -11..-3, z = -29..-16) ===
+        CrearPlataformaCircular(contenedor.transform, "PiedraSur_1", new Vector3(-9.0f, 1.08f, -17.5f), 2.5f, matBase);
+        CrearPlataformaCircular(contenedor.transform, "PiedraSur_2", new Vector3(-9.0f, 1.08f, -22.5f), 2.5f, matBase);
+        CrearPlataformaMovil(contenedor.transform, "MovilSur_Entrada", new Vector3(-9.0f, 1.10f, -26.8f), new Vector3(-3.2f, 1.10f, -26.8f), new Vector3(2.4f, 0.16f, 2.0f), 2.1f, 0.9f, matMovil);
+    }
+
+    private void CrearPlataformaCaja(Transform padre, string nombre, Vector3 pos, Vector3 escala, float rotY, Material mat)
+    {
+        GameObject obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        obj.name = nombre;
+        obj.tag = "SueloSeguro";
+        obj.transform.SetParent(padre, false);
+        obj.transform.position = pos;
+        obj.transform.rotation = Quaternion.Euler(0f, rotY, 0f);
+        obj.transform.localScale = escala;
+
+        if (mat != null) obj.GetComponent<Renderer>().sharedMaterial = mat;
+
+        var obs = obj.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+        obs.carving = true;
+        obs.carveOnlyStationary = true;
+    }
+
+    private void CrearPlataformaCircular(Transform padre, string nombre, Vector3 pos, float diametro, Material mat)
+    {
+        GameObject obj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        obj.name = nombre;
+        obj.tag = "SueloSeguro";
+        obj.transform.SetParent(padre, false);
+        obj.transform.position = pos;
+        obj.transform.localScale = new Vector3(diametro, 0.08f, diametro);
+
+        if (mat != null) obj.GetComponent<Renderer>().sharedMaterial = mat;
+
+        // Reemplazar el CapsuleCollider por MeshCollider convexo para tener una superficie circular 100% plana
+        CapsuleCollider cap = obj.GetComponent<CapsuleCollider>();
+        if (cap != null) Destroy(cap);
+        MeshCollider mc = obj.AddComponent<MeshCollider>();
+        mc.convex = true;
+
+        var obs = obj.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+        obs.shape = UnityEngine.AI.NavMeshObstacleShape.Capsule;
+        obs.carving = true;
+        obs.carveOnlyStationary = true;
+    }
+
+    private void CrearPlataformaMovil(Transform padre, string nombre, Vector3 posA, Vector3 posB, Vector3 escala, float velocidad, float espera, Material mat)
+    {
+        GameObject obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        obj.name = nombre;
+        obj.tag = "SueloSeguro";
+        obj.transform.SetParent(padre, false);
+        obj.transform.position = posA;
+        obj.transform.localScale = escala;
+
+        if (mat != null) obj.GetComponent<Renderer>().sharedMaterial = mat;
+
+        GameObject goA = new GameObject(nombre + "_PuntoA");
+        goA.transform.SetParent(padre, false);
+        goA.transform.position = posA;
+
+        GameObject goB = new GameObject(nombre + "_PuntoB");
+        goB.transform.SetParent(padre, false);
+        goB.transform.position = posB;
+
+        PlataformaMovil movil = obj.AddComponent<PlataformaMovil>();
+        movil.puntoA = goA.transform;
+        movil.puntoB = goB.transform;
+        movil.velocidad = velocidad;
+        movil.tiempoEspera = espera;
     }
 }
