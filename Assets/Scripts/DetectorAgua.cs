@@ -99,6 +99,7 @@ public class DetectorAgua : MonoBehaviour
         CrearSistemasNieblaFlotante();
         InicializarTormentaNocturna();
         CrearLucesParedSuspenso();
+        CrearLucesCuadrosGaleria();
     }
 
     void Update()
@@ -1241,6 +1242,139 @@ public class DetectorAgua : MonoBehaviour
             {
                 fp.matBombilla.SetColor("_EmissionColor", fp.luz.color * (0.9f * multiplicador + 0.25f));
             }
+        }
+    }
+
+    // Agrega pequeñas lámparas de galería estilo museo sobre cada cuadro/imagen colgado en las paredes
+    private void CrearLucesCuadrosGaleria()
+    {
+        if (GameObject.Find("LucesCuadros_Galeria") != null) return;
+
+        GameObject contenedor = new GameObject("LucesCuadros_Galeria");
+
+        Shader shaderLit = Shader.Find("Universal Render Pipeline/Lit");
+        if (shaderLit == null) shaderLit = Shader.Find("Standard");
+
+        Material matBronce = new Material(shaderLit);
+        if (matBronce.HasProperty("_BaseColor")) matBronce.SetColor("_BaseColor", new Color(0.18f, 0.14f, 0.10f, 1f));
+        else matBronce.color = new Color(0.18f, 0.14f, 0.10f, 1f);
+        if (matBronce.HasProperty("_Metallic")) matBronce.SetFloat("_Metallic", 0.8f);
+        if (matBronce.HasProperty("_Smoothness")) matBronce.SetFloat("_Smoothness", 0.55f);
+
+        Color colorGaleria = new Color(1.0f, 0.88f, 0.68f, 1f);
+
+        MeshRenderer[] renderers = FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None);
+        int contador = 0;
+
+        foreach (MeshRenderer mr in renderers)
+        {
+            if (mr == null || mr.sharedMaterial == null) continue;
+            string nombreMat = mr.sharedMaterial.name;
+
+            bool esCuadro = nombreMat.StartsWith("Mat_Cuadro")
+                || nombreMat.StartsWith("Mat_Arte")
+                || nombreMat.StartsWith("Mat_Gato")
+                || nombreMat.StartsWith("Mar_Gato");
+
+            if (!esCuadro) continue;
+
+            contador++;
+            Bounds b = mr.bounds;
+            Vector3 frente = -mr.transform.forward;
+            frente.y = 0f;
+            if (frente.sqrMagnitude < 0.01f) frente = Vector3.forward;
+            frente.Normalize();
+
+            float anchoCuadro = Mathf.Max(b.size.x, b.size.z);
+            float altoCuadro = Mathf.Max(b.size.y, 1.0f);
+            float anchoBarra = Mathf.Clamp(anchoCuadro * 0.42f, 0.45f, 1.45f);
+
+            // Punto superior central del cuadro, ligeramente hacia afuera de la pared
+            Vector3 posSuperior = new Vector3(b.center.x, b.max.y + 0.12f, b.center.z) + frente * 0.05f;
+
+            GameObject lampara = new GameObject("LuzCuadro_" + contador + "_" + nombreMat);
+            lampara.transform.SetParent(contenedor.transform, false);
+            lampara.transform.position = posSuperior;
+            lampara.transform.rotation = Quaternion.LookRotation(frente, Vector3.up);
+
+            // 1. Pequeño brazo y barra metálica estilo lámpara de museo
+            GameObject brazo = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            brazo.name = "BrazoLampara";
+            brazo.transform.SetParent(lampara.transform, false);
+            brazo.transform.localPosition = new Vector3(0f, 0f, 0.14f);
+            brazo.transform.localScale = new Vector3(0.06f, 0.05f, 0.28f);
+            Destroy(brazo.GetComponent<Collider>());
+            brazo.GetComponent<Renderer>().sharedMaterial = matBronce;
+
+            GameObject barra = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            barra.name = "BarraLampara";
+            barra.transform.SetParent(lampara.transform, false);
+            barra.transform.localPosition = new Vector3(0f, 0f, 0.28f);
+            barra.transform.localScale = new Vector3(anchoBarra, 0.055f, 0.07f);
+            Destroy(barra.GetComponent<Collider>());
+            barra.GetComponent<Renderer>().sharedMaterial = matBronce;
+
+            // 2. Tira cálida emisiva debajo de la barra
+            GameObject tiraLuz = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            tiraLuz.name = "TiraEmisiva";
+            tiraLuz.transform.SetParent(lampara.transform, false);
+            tiraLuz.transform.localPosition = new Vector3(0f, -0.032f, 0.28f);
+            tiraLuz.transform.localScale = new Vector3(anchoBarra * 0.88f, 0.018f, 0.045f);
+            Destroy(tiraLuz.GetComponent<Collider>());
+
+            Material matTira = new Material(shaderLit);
+            matTira.EnableKeyword("_EMISSION");
+            if (matTira.HasProperty("_BaseColor")) matTira.SetColor("_BaseColor", colorGaleria);
+            else matTira.color = colorGaleria;
+            if (matTira.HasProperty("_EmissionColor")) matTira.SetColor("_EmissionColor", colorGaleria * 1.6f);
+            tiraLuz.GetComponent<Renderer>().sharedMaterial = matTira;
+
+            // 3. Pequeño foco Spot enfocado hacia el centro de la imagen
+            GameObject objFoco = new GameObject("FocoCuadro");
+            objFoco.transform.SetParent(lampara.transform, false);
+            Vector3 posFocoMundo = posSuperior + frente * 0.48f + Vector3.up * 0.08f;
+            objFoco.transform.position = posFocoMundo;
+            objFoco.transform.rotation = Quaternion.LookRotation((b.center - posFocoMundo).normalized, Vector3.up);
+
+            Light foco = objFoco.AddComponent<Light>();
+            foco.type = LightType.Spot;
+            foco.color = colorGaleria;
+            foco.spotAngle = 72f;
+            foco.innerSpotAngle = 34f;
+            foco.range = Mathf.Clamp(altoCuadro * 2.1f, 4.5f, 10.5f);
+            foco.intensity = 2.4f;
+            foco.shadows = LightShadows.None;
+
+            // 4. Iluminación suave propia en la imagen para que destaque limpia en la oscuridad
+            Material matCuadroInst = mr.material;
+            if (matCuadroInst != null)
+            {
+                matCuadroInst.EnableKeyword("_EMISSION");
+                Texture texImagen = matCuadroInst.HasProperty("_BaseMap")
+                    ? matCuadroInst.GetTexture("_BaseMap")
+                    : (matCuadroInst.HasProperty("_MainTex") ? matCuadroInst.GetTexture("_MainTex") : null);
+
+                if (texImagen != null && matCuadroInst.HasProperty("_EmissionMap"))
+                {
+                    matCuadroInst.SetTexture("_EmissionMap", texImagen);
+                }
+                if (matCuadroInst.HasProperty("_EmissionColor"))
+                {
+                    matCuadroInst.SetColor("_EmissionColor", new Color(0.22f, 0.20f, 0.17f, 1f));
+                }
+            }
+
+            // Registrar también para que reaccione suavemente si el monstruo pasa por debajo
+            lucesPared.Add(new LuzParedSuspenso
+            {
+                luz = foco,
+                matBombilla = matTira,
+                posicion = b.center,
+                intensidadBase = 2.4f,
+                fase = contador * 0.91f,
+                proximoFallo = Time.time + Random.Range(8.0f, 22.0f),
+                finFallo = -1f
+            });
         }
     }
 }
